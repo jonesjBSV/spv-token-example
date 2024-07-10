@@ -1,10 +1,16 @@
-# Getting Started with Create React App
+# Getting Started
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This project is a basic Proof-of-Concept (POC) to demonstrate a simple way to use SPV Tokens.
 
 ## Available Scripts
 
 In the project directory, you can run:
+
+### `./scripts/start.sh`
+
+Fetches the latest version of Arc and a self-hosted BSV Blockchain explorer, starts a local BSV node, Arc, and the BSV Blockchain explorer
+via docker-compose, and runs the app in the development mode.
+
 
 ### `npm start`
 
