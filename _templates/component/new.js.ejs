@@ -1,0 +1,14 @@
+---
+to: src/components/<%= h.changeCase.pascal(name) %>.js
+---
+import React from 'react';
+
+const <%= h.changeCase.pascal(name) %> = () => {
+    return (
+        <div>
+            <h2><%= h.changeCase.pascal(name) %></h2>
+        </div>
+    );
+};
+
+export default <%= h.changeCase.pascal(name) %>;

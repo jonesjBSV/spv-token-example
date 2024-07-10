@@ -1,0 +1,87 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #dadada;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: #0c0c0c;
+  width: 100%;
+}
+
+.Tabs-header {
+  width: 100%;
+  background-color: #cecece;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+body {
+  margin: 0;
+  font-family: 'Roboto', sans-serif;
+}
+
+pre.language-json {
+  background-color: #f4f4f4;
+  border: 1px solid #ddd;
+  border-left: 3px solid #f36d33;
+  color: #c2bebe;
+  page-break-inside: avoid;
+  font-family: monospace;
+  font-size: 15px;
+  line-height: 1.6;
+  margin-bottom: 1.6em;
+  max-width: 100%;
+  overflow: auto;
+  padding: 1em 1.5em;
+  display: block;
+  word-wrap: break-word;
+}
+
+#json-pretty {
+  border-radius: 4px;
+  padding: 10px;
+  overflow-x: auto;
+}
+
+pre.__json-pretty__ {
+  color: white;
+}
+
+pre.__json-pretty__ .__json-string__{
+  color: #66d9ef;
+}
+
+ pre.__json-pretty__ .__json-key__ {
+  color: #f08d49
+}
+
+.json-pretty-container {
+  text-align: left;
+}
