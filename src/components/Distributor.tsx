@@ -7,6 +7,7 @@ import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx } from './utilityFunctions';
 
 
 
@@ -15,8 +16,8 @@ interface Props {
   creatorKey: PrivateKey;
   creatorKeys: PrivateKey[];
   hmacKey: string;
-  prevTx: Transaction;
-  prevTxMerklePath: string;
+  creatorTx: Transaction;
+  creatorTxMerklePath: string;
   prevTxOutputIndex: number;
   tickets: Ticket[];
   distTicks: Ticket[];
@@ -27,13 +28,12 @@ interface Props {
 }
 
 
-const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, hashedTickets, creatorKey, creatorKeys, hmacKey,
-  prevTx, tickets, distTicks, distHashedTicks, onDistribute, onSelectDistributedTickets, onHashDistributedTickets }) => {
+const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, hashedTickets, creatorKey, creatorKeys, hmacKey,
+  creatorTx, tickets, distTicks, distHashedTicks, onDistribute, onSelectDistributedTickets, onHashDistributedTickets }) => {
 
   const [privateKey] = useState<PrivateKey>(new PrivateKey());
   const [distributedTickets, setDistributedTickets] = useState<Ticket[]>(distTicks);
   const [distributedHashedTickets, setDistributedHashedTickets] = useState<HashedTicket[]>(distHashedTicks);
-  const [selectedTickets, setSelectedTickets] = useState<Set<number>>(new Set());
   const [distributorTx, setDistributorTx] = useState<Transaction>(new Transaction());
   const [distributorTxInputIndex, setDistributorTxInputIndex] = useState<number>(0);
   const [distributorKeys, setDistributorKeys] = useState<PrivateKey[]>([]);
@@ -43,33 +43,10 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
     onDistribute(distributorTx, distributorTxInputIndex, distributorKeys);
   }, [onDistribute, distributorTx, distributorTxInputIndex, distributorKeys]);
 
-  const handleSelectTicket = (index: number) => {
-    setSelectedTickets(prev => {
-      const newSelected = new Set(prev);
-      if (newSelected.has(index)) {
-        newSelected.delete(index);
-      } else {
-        newSelected.add(index);
-      }
-      return newSelected;
-    });
-  };
-
-  const handleSelectTicketsForDistribution = () => {
-    if (!creatorKey || !hmacKey || !prevTx) return;
-
-    const dTickets: Ticket[] = [];
-
-    selectedTickets.forEach((index) => {
-      dTickets.push(tickets[index]);
-    });
-    setDistributedTickets(dTickets)
-    onSelectDistributedTickets(dTickets);
-  };
 
   const handleCreateHashedTickets = () => {
 
-    const newHashedTickets = distributedTickets.map(ticket => ({
+    const newHashedTickets = tickets.map(ticket => ({
       ticket,
       hash: Array.from(Hash.sha256hmac(hmacKey, JSON.stringify(ticket))),
     }));
@@ -79,14 +56,15 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
   };
 
   const handleSpvVerification =  async () => {
-    if (!creatorKey || !hmacKey || !prevTx) return;
+    if (!creatorKey || !hmacKey || !creatorTx || !creatorTxMerklePath) return;
 
-    const tx = prevTx;
-    const merklePath = prevTxMerklePath;
+    const tx = creatorTx;
+    const merklePath = creatorTxMerklePath;
 
     tx.merklePath = MerklePath.fromHex(merklePath);
+    const result = await tx.verify();
 
-    console.log(await tx.verify());
+    console.log(result);
 
   }
 
@@ -126,9 +104,9 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
   const handleAddInputs = () => {
     if (!creatorKeys) return;
     const tx = distributorTx;
-    selectedTickets.forEach((index) => {
+    tickets.forEach((ticket, index) => {
       tx.addInput({
-        sourceTransaction: prevTx,
+        sourceTransaction: creatorTx,
         sourceOutputIndex: index,
         unlockingScriptTemplate: new P2PKH().unlock(creatorKeys[index]),
         sequence: 0xFFFFFFFF,
@@ -136,7 +114,7 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
     });
 
     tx.addInput({
-      sourceTransaction: prevTx,
+      sourceTransaction: creatorTx,
       sourceOutputIndex: prevTxOutputIndex,
       unlockingScriptTemplate: new P2PKH().unlock(PrivateKey.fromWif('L259sfQyASg5rpjxMHCh1XbaoRYAvkNCzrMSRG3kuVp2bA9YveX8')),
       sequence: 0xFFFFFFFF,
@@ -154,7 +132,7 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
     tx.version = 2;
 
     try {
-      await tx.fee(new SatoshisPerKilobyte(10));
+      await tx.fee(new SatoshisPerKilobyte(1));
       await tx.sign();
     } catch (error) {
       console.error(error);
@@ -167,47 +145,16 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
       index = distributedHashedTickets.length;
     } 
     onDistribute(tx, index, distributorKeys);
+    onSelectDistributedTickets(tickets);
 
   };
 
   const handleSubmitTransaction = async () => {
-    const tx = distributorTx;
-
-    try {
-      const response = await fetch('http://localhost:9090/v1/tx', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/plain',
-        },
-        body: JSON.stringify({
-          "rawTx": tx.toHexEF(),
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      } else {
-        const responseData = await response.json();
-        console.log(responseData);
-      }
-    } catch (error) {
-      console.error(error);
-      return;
-    }
+    await handleSubmitTx(distributorTx);
   };
 
-  const toHexString = (byteArray: number[]) => {
-    return byteArray.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
-  };
-
-  const hasInputsOrOutputs = (tx: Transaction | null) => {
-    return tx && (tx.inputs.length > 0 || tx.outputs.length > 0);
-  };
   
   return (
-
-
     <div>
     <Typography variant="h4" gutterBottom>
       Distributor
@@ -221,7 +168,6 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>Selected</TableCell>
             <TableCell>Event Name</TableCell>
             <TableCell>Section</TableCell>
             <TableCell>Row</TableCell>
@@ -231,12 +177,6 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
         <TableBody>
           {tickets.map((ticket, idx) => (
             <TableRow key={idx}>
-              <TableCell padding="checkbox">
-                <Checkbox
-                  checked={selectedTickets.has(idx)}
-                  onChange={() => handleSelectTicket(idx)}
-                />
-              </TableCell>
               <TableCell>{ticket.eventName}</TableCell>
               <TableCell>{ticket.section}</TableCell>
               <TableCell>{ticket.row}</TableCell>
@@ -246,43 +186,8 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
         </TableBody>
       </Table>
     </TableContainer>
-      <div>
-        <Button variant="contained" onClick={handleSelectTicketsForDistribution} style={{ marginTop: '16px' }}>
-          Select Tickets for Distribution
-        </Button>
-      </div>
     </Grid>
     <Grid item xs={6}>
-      <Typography variant="h6" gutterBottom style={{ marginTop: '16px' }}>
-        Selected Tickets
-      </Typography>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Event Name</TableCell>
-              <TableCell>Section</TableCell>
-              <TableCell>Row</TableCell>
-              <TableCell>Seat</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {distributedTickets.map((ticket, idx) => (
-              <TableRow key={idx}>
-                <TableCell>{ticket.eventName}</TableCell>
-                <TableCell>{ticket.section}</TableCell>
-                <TableCell>{ticket.row}</TableCell>
-                <TableCell>{ticket.seat}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      <div>
-        <Button variant="contained" onClick={handleCreateHashedTickets} style={{ marginTop: '16px' }}>
-          Hash Selected Tickets
-        </Button>
-      </div>
     </Grid>
     <Grid item xs={6}>
       <Typography variant="h6" gutterBottom style={{ marginTop: '16px' }}>
@@ -329,6 +234,11 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
           </TableBody>
         </Table>
       </TableContainer>
+      <div>
+        <Button variant="contained" onClick={handleCreateHashedTickets} style={{ marginTop: '16px' }}>
+          Hash Tickets
+        </Button>
+      </div>
     </Grid>
     </Grid>
       <div>

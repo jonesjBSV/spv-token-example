@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Transaction, PrivateKey, PublicKey, P2PKH, Hash } from '@bsv/sdk';
+import { Transaction, PrivateKey, PublicKey, P2PKH, Hash, SatoshisPerKilobyte } from '@bsv/sdk';
 import { Button, Typography, List, ListItem, ListItemText, Paper, Table, TableContainer, TableHead, TableRow, TableCell, TableBody, Grid } from '@mui/material';
 import { HashedTicket, Ticket } from './TicketCreator';
+import { handleSubmitTx, hasInputsOrOutputs, toHexString } from './utilityFunctions';
+import JSONPretty from 'react-json-pretty';
 
 interface Props {
   buyerTx: Transaction;
@@ -9,47 +11,35 @@ interface Props {
   buyerKey: PrivateKey | null;
   buyerKeys: PrivateKey[];
   hashedTickets: HashedTicket[];
-  redeemedTickets: Ticket[];
+  buyerIndexes: Set<number>;
+  buyerTickets: Ticket[];
   hmacKey: string;
   onEventGateEntry: (tx: Transaction, privateKey: PrivateKey, publicKey: PublicKey) => void;
 }
 
-const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashedTickets, buyerTx, buyerTxOutputIndex, buyerKey }) => {
+const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, buyerTickets, buyerIndexes, hashedTickets, buyerTx, buyerTxOutputIndex, buyerKey }) => {
   const [privateKey] = useState<PrivateKey>(new PrivateKey());
   const [publicKey] = useState<PublicKey>(privateKey.toPublicKey());
   const [redeemedHashedTickets, setRedeemedHashedTickets] = useState<HashedTicket[]>([]);
   const [redeemedTx, setRedeemedTx] = useState<Transaction>(new Transaction());
+  const [redeemedKeys, setRedeemedKeys] = useState<PrivateKey[]>([]);
+  const [outputText, setOutputText] = useState<string>("");
 
   const redeemTicket = () => {
     if (!buyerTx || !buyerKey) return;
-
-    handleHashRedeemedTickets();
-    handleAddInputs();
-    handleAddOutputs();
-
-    const newTx = new Transaction();
-
-    newTx.addInput({
-      sourceTransaction: buyerTx,
-      sourceOutputIndex: 0,
-      unlockingScriptTemplate: new P2PKH().unlock(buyerKey),
-      sequence: 0xFFFFFFFF,
-    });
-
-    newTx.addOutput({
-      lockingScript: new P2PKH().lock(publicKey.toAddress()),
-      satoshis: 3
-    });
 
   };
 
   const handleAddInputs = () => {
     if (!buyerKeys) return;
     const tx = redeemedTx;
-    redeemedTickets.forEach((ticket, index) => {
+
+    console.log(buyerTx.outputs.length - (buyerTickets.length + 1));
+    console.log(buyerTx.outputs.length - 1);
+    buyerTickets.forEach((ticket, index) => {
       tx.addInput({
         sourceTransaction: buyerTx,
-        sourceOutputIndex: index+2,
+        sourceOutputIndex: buyerTx.outputs.length - (buyerTickets.length + 1),
         unlockingScriptTemplate: new P2PKH().unlock(buyerKeys[index]),
         sequence: 0xFFFFFFFF,
       });
@@ -57,12 +47,13 @@ const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashe
 
     tx.addInput({
       sourceTransaction: buyerTx,
-      sourceOutputIndex: buyerTxOutputIndex,
+      sourceOutputIndex: buyerTx.outputs.length - 1,
       unlockingScriptTemplate: new P2PKH().unlock(PrivateKey.fromWif('L259sfQyASg5rpjxMHCh1XbaoRYAvkNCzrMSRG3kuVp2bA9YveX8')),
       sequence: 0xFFFFFFFF,
     });
 
     setRedeemedTx(tx);
+    setOutputText(JSON.stringify(tx));
 
   }
 
@@ -71,6 +62,7 @@ const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashe
   };
 
   const handleAddOutputs = () => {
+
     const tx = redeemedTx;
     const keys: PrivateKey[] = [];
     if (keys.length < 1) {
@@ -92,48 +84,43 @@ const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashe
       lockingScript: new P2PKH().lock(PrivateKey.fromWif('L259sfQyASg5rpjxMHCh1XbaoRYAvkNCzrMSRG3kuVp2bA9YveX8').toAddress()),
       change: true,
     });
+
+    setRedeemedKeys(keys);
+    setRedeemedTx(tx);
+    setOutputText(JSON.stringify(tx));
   };
 
+  const handleCreateRedeemedTransaction = async () => {
+
+    const tx = redeemedTx;
+
+    tx.version = 2;
+
+    try {
+      await tx.fee(new SatoshisPerKilobyte(1));
+      await tx.sign();
+    } catch (error) {
+      console.error(error);
+      return;
+    }
+    console.log(JSON.stringify({"rawTx": tx.toHex()}));
+    setRedeemedTx(tx);
+
+  };
+
+
+
+
   const handleHashRedeemedTickets = () => {
-    const rHashedTickets = redeemedTickets.map(ticket => ({
+    const rHashedTickets = buyerTickets.map(ticket => ({
       ticket,
       hash: Array.from(Hash.sha256hmac(hmacKey, JSON.stringify(ticket)))
     }));
     setRedeemedHashedTickets(rHashedTickets);
 
   };
-
-  const toHexString = (byteArray: number[]) => {
-    return byteArray.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
-  };
-
-
   const handleSubmitTransaction = async () => {
-    const tx = redeemedTx;
-
-    try {
-      const response = await fetch('http://localhost:9090/v1/tx', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/plain',
-        },
-        body: JSON.stringify({
-          "rawTx": tx.toHexEF(),
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      } else {
-        const responseData = await response.json();
-        console.log(responseData);
-      }
-    } catch (error) {
-      console.error(error);
-      return;
-    }
-
+    handleSubmitTx(redeemedTx);
   };
   
   return (
@@ -150,7 +137,6 @@ const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashe
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>Selected</TableCell>
             <TableCell>Event Name</TableCell>
             <TableCell>Section</TableCell>
             <TableCell>Row</TableCell>
@@ -158,7 +144,7 @@ const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashe
           </TableRow>
         </TableHead>
         <TableBody>
-          {redeemedTickets.map((ticket, idx) => (
+          {buyerTickets.map((ticket, idx) => (
             <TableRow key={idx}>
               <TableCell>{ticket.eventName}</TableCell>
               <TableCell>{ticket.section}</TableCell>
@@ -217,8 +203,23 @@ const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashe
           </TableBody>
         </Table>
       </TableContainer>
+    <div>
+      <Button variant="contained" color="primary" onClick={handleHashRedeemedTickets} style={{ marginTop: '16px' }}>
+        Hash Tickets
+      </Button>
+    </div>
     </Grid>
     </Grid>
+    <div>
+      <Button variant="contained" color="primary" onClick={handleAddInputs} style={{ marginTop: '16px' }}>
+        Add Inputs
+      </Button>
+    </div>
+    <div>
+      <Button variant="contained" color="primary" onClick={handleAddOutputs} style={{ marginTop: '16px' }}>
+        Add Outputs
+      </Button>
+    </div>
     <div>
       <Button variant="contained" color="primary" onClick={redeemTicket} style={{ marginTop: '16px' }}>
         Redeem Ticket(s)
@@ -229,11 +230,24 @@ const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashe
         Clear Transaction
       </Button>
     </div>
+      <div>
+        <Button variant="contained" onClick={handleCreateRedeemedTransaction} style={{ marginTop: '16px' }}>
+          Create Redeem Transaction
+        </Button>
+      </div>
     <div>
       <Button variant="contained" color="primary" onClick={handleSubmitTransaction} style={{ marginTop: '16px' }}>
         Submit Transaction
       </Button>
     </div>
+      {hasInputsOrOutputs(redeemedTx) && (
+        <div style={{ marginTop: '16px' }}>
+          <Typography variant="h6" gutterBottom>
+            Created Transaction
+          </Typography>
+          <JSONPretty id="json-pretty" className="json-pretty-container" data={outputText}></JSONPretty>
+        </div>
+      )}
     </div>
   );
 };

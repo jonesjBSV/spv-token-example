@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Hash, Transaction, PrivateKey, PublicKey, P2PKH, SatoshisPerKilobyte, TransactionOutput } from '@bsv/sdk';
-import { TextField, Button, Typography, List, ListItem, ListItemText, Grid, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Checkbox } from '@mui/material';
+import { Hash, Transaction, PrivateKey, PublicKey, P2PKH, SatoshisPerKilobyte, } from '@bsv/sdk';
+import { Button, Typography, Grid, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Checkbox } from '@mui/material';
 import { HashedTicket, Ticket } from './TicketCreator';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx } from './utilityFunctions';
 
 interface Props {
   distributorTx: Transaction;
@@ -16,10 +17,10 @@ interface Props {
   buyerPublicKey: PublicKey | null;
   hmacKey: string;
   onBuy: (tx: Transaction, buyerTxOutputIndex: number, buyerKeys: PrivateKey[], buyer2Keys: PrivateKey[]) => void;
-  onSelectBuyerTickets: (buyerTickets: Ticket[]) => void;
+  onSelectBuyerTickets: (buyerTickets: Ticket[], buyerIndexes: Set<number>) => void;
 }
 
-const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distributorKeys, distributorTickets, distributorHashedTickets, buyerPublicKey, hmacKey, onBuy }) => {
+const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, distributorTxInputIndex, distributorTx, distributorKeys, distributorTickets, distributorHashedTickets, buyerPublicKey, hmacKey, onBuy }) => {
   const [buyerTickets, setBuyerTickets] = useState<Ticket[]>([]);
   const [buyerHashedTickets, setBuyerHashedTickets] = useState<HashedTicket[]>([]);
   const [title, setTitle] = useState<string>("");
@@ -111,7 +112,7 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
     });
 
     try {
-      await tx.fee(new SatoshisPerKilobyte(10));
+      await tx.fee(new SatoshisPerKilobyte(1));
       await tx.sign();
     } catch (error) {
       console.error(error);
@@ -148,12 +149,12 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
     });
 
     tx.addOutput({
-      lockingScript: new P2PKH().lock(distributorOutputKey.toAddress()),
+      lockingScript: new P2PKH().lock(PrivateKey.fromWif('L259sfQyASg5rpjxMHCh1XbaoRYAvkNCzrMSRG3kuVp2bA9YveX8').toAddress()),
       change: true,
     });
 
     try {
-      await tx.fee(new SatoshisPerKilobyte(10));
+      await tx.fee(new SatoshisPerKilobyte(1));
       await tx.sign();
     } catch (error) {
       console.error(error);
@@ -175,6 +176,7 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
       bTickets.push(distributorTickets[index]);
     });
     setBuyerTickets(bTickets);
+    onSelectBuyerTickets(bTickets, selectedTickets);
 
   };
 
@@ -192,32 +194,8 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
   };
 
   const handleSubmitTransaction = async () => {
-    const tx = buyerTx;
-
-    try {
-      const response = await fetch('http://localhost:9090/v1/tx', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/plain',
-        },
-        body: JSON.stringify({
-          "rawTx": tx.toHexEF(),
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      } else {
-        const responseData = await response.json();
-        console.log(responseData);
-      }
-    } catch (error) {
-      console.error(error);
-      return;
-    }
-
-    onBuy(tx, buyerTxOutputIndex, buyerKeys, buyer2Keys);
+    await handleSubmitTx(buyerTx);
+    onBuy(buyerTx, buyerTxOutputIndex, buyerKeys, buyer2Keys);
   };
 
   const handleSellTicket = async () => {
@@ -241,14 +219,6 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
     });
 
   }
-
-  const toHexString = (byteArray: number[]) => {
-    return byteArray.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
-  };
-
-  const hasInputsOrOutputs = (tx: Transaction | null) => {
-    return tx && (tx.inputs.length > 0 || tx.outputs.length > 0);
-  };
 
   return (
     <div>

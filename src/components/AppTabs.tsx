@@ -46,7 +46,7 @@ const AppTabs: React.FC = () => {
   const [hmKey, setHmKey] = useState<string>(PrivateKey.fromRandom().toString());
   const [distributorTx, setDistributorTx] = useState<Transaction>(new Transaction());
   const [distributorTxInputIndex, setDistributorTxInputIndex] = useState<number>(0);
-  const [buyerTx, setBoughtTx] = useState<Transaction>(new Transaction());
+  const [buyerTx, setBuyerTx] = useState<Transaction>(new Transaction());
   const [createdTx, setCreatedTx] = useState<Transaction>(new Transaction());
   const [createdTickets, setCreatedTickets] = useState<Ticket[]>([]);
   const [createdHashedTickets, setcreatedHashedTickets] = useState<HashedTicket[]>([]);
@@ -54,12 +54,13 @@ const AppTabs: React.FC = () => {
   const [distributorHashedTickets, setDistributorHashedTickets] = useState<HashedTicket[]>([]);
   const [distributorKeys, setDistributorKeys] = useState<PrivateKey[]>([]);
   const [privKey, setPrivKey] = useState<PrivateKey>(new PrivateKey())
-  const [prevTxMerklePath, setPrevTxMerklePath] = useState<string>("");
+  const [creatorTxMerklePath, setCreatorTxMerklePath] = useState<string>("");
   const [prevTxOutputIndex, setPrevTxOutputIndex] = useState<number>(0);
   const [buyerTickets, setBuyerTickets] = useState<Ticket[]>([]);
   const [buyerKeys, setBuyerKeys] = useState<PrivateKey[]>([]);
   const [buyer2Keys, setBuyer2Keys] = useState<PrivateKey[]>([]);
   const [buyerTxOutputIndex, setBuyerTxOutputIndex] = useState<number>(0);
+  const [buyerIndexes, setBuyerIndexes] = useState<Set<number>>(new Set());
 
   const handleChange = (event: React.ChangeEvent<{}>, newValue: number) => {
     setValue(newValue);
@@ -80,7 +81,7 @@ const AppTabs: React.FC = () => {
           ticks={createdTickets}
           hashedTicks={createdHashedTickets}
           createdTx={createdTx}
-          onGetMerklePath={(merklePath) => setPrevTxMerklePath(merklePath)}
+          onGetMerklePath={(merklePath) => setCreatorTxMerklePath(merklePath)}
           onTransactionSigned={(privateKey, hmacKey) => {setPrivKey(privateKey); setHmKey(hmacKey)}}
           onTransactionCreated={(tx, creatorKeys, txOutputIndex) => {setCreatedTx(tx); setCreatorKeys(creatorKeys); setPrevTxOutputIndex(txOutputIndex)}}
           onTicketsCreated={(tickets) => setCreatedTickets(tickets)}
@@ -95,8 +96,8 @@ const AppTabs: React.FC = () => {
           creatorKey={creatorKey}
           creatorKeys={creatorKeys}
           hmacKey={hmKey}
-          prevTx={createdTx}
-          prevTxMerklePath={prevTxMerklePath}
+          creatorTx={createdTx}
+          creatorTxMerklePath={creatorTxMerklePath}
           prevTxOutputIndex={prevTxOutputIndex}
           tickets={createdTickets}
           onDistribute={(tx, index, distributorKeys) => {setDistributorTx(tx); setDistributorTxInputIndex(index); setDistributorKeys(distributorKeys)}}
@@ -113,14 +114,15 @@ const AppTabs: React.FC = () => {
           distributorHashedTickets={distributorHashedTickets}
           hmacKey={hmKey}
           buyerPublicKey={new PrivateKey().toPublicKey()}
-          onBuy={(tx, buyerTxOutputIndex, buyerKeys, buyer2Keys) => {setBoughtTx(tx); setBuyerTxOutputIndex(buyerTxOutputIndex); setBuyerKeys(buyerKeys); setBuyer2Keys(buyer2Keys)}}
-          onSelectBuyerTickets={(ticks) => setBuyerTickets(ticks)}
+          onBuy={(tx, buyerTxOutputIndex, buyerKeys, buyer2Keys) => {setBuyerTx(tx); setBuyerTxOutputIndex(buyerTxOutputIndex); setBuyerKeys(buyerKeys); setBuyer2Keys(buyer2Keys)}}
+          onSelectBuyerTickets={(ticks, indexes) => {setBuyerTickets(ticks); setBuyerIndexes(indexes)}}
         />
       </TabPanel>
       <TabPanel value={value} index={3}>
         <EventGate
           hmacKey={hmKey}
-          redeemedTickets={buyerTickets}
+          buyerIndexes={buyerIndexes}
+          buyerTickets={buyerTickets}
           hashedTickets={createdHashedTickets}
           buyerTx={buyerTx}
           buyerTxOutputIndex={buyerTxOutputIndex}

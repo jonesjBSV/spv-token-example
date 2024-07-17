@@ -47,6 +47,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
   const [sequence, setSequence] = useState<string>('0xFFFFFFFF');
   const [creatorKeys, setCreatorKeys] = useState<PrivateKey[]>([]);
   const [prevTxMerklePath, setPrevTxMerklePath] = useState<string>("");
+  const [outputText, setOutputText] = useState<string>("");
 
   useEffect(() => {
     onTransactionSigned(privateKey, hmacKey);
@@ -93,6 +94,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
     });
     setCreatorKeys(keys);
     setPrevTx(tx);
+    setOutputText(JSON.stringify(tx, null, 2));
     if(hashedTickets.length !== 0) {
       setPrevTxOutputIndex(hashedTickets.length + 1);
     }
@@ -118,6 +120,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
     setSequence('0xFFFFFFFF');*/
 
     setPrevTx(tx);
+    setOutputText(JSON.stringify(tx, null, 2));
     onTransactionSigned(privateKey, hmacKey);
   };
 
@@ -132,7 +135,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
       throw new Error('Transaction must have at least one input and one output');
     }
 
-    //tx.version = 2;
+    tx.version = 2;
 
     // Calc fee
     await tx.fee(new SatoshisPerKilobyte(1));
@@ -152,6 +155,9 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
     if (hashedTickets.length !== 0) {
       index = hashedTickets.length;
     } 
+    setOutputText(JSON.stringify({
+      "rawTx": tx.toHex()
+    }, null, 2));
 
     onTransactionCreated(tx, creatorKeys, index);
     onTransactionSigned(privateKey, hmacKey);
@@ -182,6 +188,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
       }
       const responseData = await response.json();
       console.log(responseData);
+      setOutputText(JSON.stringify(responseData));
     } catch (error) {
       console.error(error);
       return;
@@ -207,6 +214,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
       console.log(responseData.merklePath);
       console.log(responseData);
       onGetMerklePath(responseData.merklePath as string);
+      setOutputText(JSON.stringify(responseData));
     } catch (error) {
       console.error(error);
       return;
@@ -383,7 +391,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
           <Typography variant="h6" gutterBottom>
             Created Transaction
           </Typography>
-          <JSONPretty id="json-pretty" className="json-pretty-container" data={JSON.stringify(prevTx)}></JSONPretty>
+          <JSONPretty id="json-pretty" className="json-pretty-container" data={outputText}></JSONPretty>
         </div>
       )}
     </div>
