@@ -231,7 +231,7 @@ const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, redeemedTickets, hashe
     </div>
     <div>
       <Button variant="contained" color="primary" onClick={handleSubmitTransaction} style={{ marginTop: '16px' }}>
-        Clear Transaction
+        Submit Transaction
       </Button>
     </div>
     </div>

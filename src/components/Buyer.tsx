@@ -131,7 +131,7 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
 
     setTitle("Step 3: Distributor adds ticket inputs and outputs");
 
-    buyerHashedTickets.forEach((hashedTicket, index) => {
+    selectedTickets.forEach((index) => {
       tx.addInput({
         sourceTransaction: distributorTx,
         sourceOutputIndex: index,
@@ -139,7 +139,7 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
         sequence: 0xFFFFFFFF,
       });
 
-      const key: PrivateKey = PrivateKey.fromString((Hash.sha256hmac(hmacKey, PrivateKey.fromRandom().toPublicKey().toHash()+(hashedTicket.hash.join(''), 'hex'))).join(''), 'hex');
+      const key: PrivateKey = PrivateKey.fromString((Hash.sha256hmac(hmacKey, PrivateKey.fromRandom().toPublicKey().toHash()+(buyerHashedTickets[index % buyerHashedTickets.length].hash.join(''), 'hex'))).join(''), 'hex');
       buyerKeys.push(key);
       tx.addOutput({
         lockingScript: new P2PKH().lock(key.toAddress()),
@@ -162,7 +162,7 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
     console.log(JSON.stringify({"rawTx": tx.toHex()}));
 
     setBuyerTx(tx);
-    setBuyerTxOutputIndex(tx.outputs.length - 3);
+    setBuyerTxOutputIndex(tx.outputs.length - buyerHashedTickets.length - 1);
     setBody(JSON.stringify(tx));
   };
 
@@ -224,15 +224,10 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
     const tx = buyerTx;
     const b2Keys: PrivateKey[] = [];
     selectedTickets.forEach((index) => {
-      const ticket = buyerHashedTickets[index]
+      const hashedTicket = buyerHashedTickets[index]
     
 
-      const key = PrivateKey.fromString((Hash.sha256hmac(hmacKey, PrivateKey.fromRandom().toPublicKey().toHash()+(ticket).hash.join(''), 'hex')).join(''), 'hex');
-      tx.outputs[tx.outputs.length - 1] = {
-        lockingScript: new P2PKH().lock(distributorOutputKey.toAddress()),
-        satoshis: 1000,
-      };
-
+      const key: PrivateKey = PrivateKey.fromString((Hash.sha256hmac(hmacKey, PrivateKey.fromRandom().toPublicKey().toHash()+(hashedTicket.hash.join(''), 'hex'))).join(''), 'hex');
       b2Keys.push(key);
       tx.outputs[index+buyerHashedTickets.length] = ({
         lockingScript: new P2PKH().lock(key.toAddress()),
@@ -240,7 +235,9 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
       });
 
       setBuyer2Keys(b2Keys);
-
+      setBuyerTx(tx);
+      setBody(JSON.stringify(tx));
+      console.log(JSON.stringify({"rawTx": tx.toHex()}));
     });
 
   }
@@ -377,12 +374,6 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
           </TableBody>
         </Table>
       </TableContainer>
-      <div>
-        <Button variant="contained" onClick={clearBuyerTransaction} 
-        style={{ marginTop: '16px' }}>
-          Clear Transaction
-        </Button>
-      </div>
     </Grid>
     </Grid>
       <div>
@@ -408,6 +399,12 @@ const Buyer: React.FC<Props> = ({ distributorTxInputIndex, distributorTx, distri
       <div>
         <Button variant="contained" onClick={handleSellTicket} style={{ marginTop: '16px' }}>
           Sell Ticket
+        </Button>
+      </div>
+      <div>
+        <Button variant="contained" onClick={clearBuyerTransaction} 
+        style={{ marginTop: '16px' }}>
+          Clear Transaction
         </Button>
       </div>
       <div>

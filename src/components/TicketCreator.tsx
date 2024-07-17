@@ -351,9 +351,13 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
           </TableBody>
         </Table>
       </TableContainer>
-      <Button variant="contained" onClick={handleAddOutputs} style={{ marginTop: '16px' }}>
-        Add Outputs
-      </Button>
+      <div>
+        <Button variant="contained" onClick={handleAddOutputs} style={{ marginTop: '16px' }}>
+          Add Outputs
+        </Button>
+      </div>
+    </Grid>
+    </Grid>
       <div>
         <Button variant="contained" onClick={handleCreateTranche} style={{ marginTop: '16px' }}>
           Create Ticket Tranche
@@ -374,8 +378,6 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
           Clear TX
         </Button>
       </div>
-    </Grid>
-    </Grid>
       {hasInputsOrOutputs(prevTx) && (
         <div style={{ marginTop: '16px' }}>
           <Typography variant="h6" gutterBottom>

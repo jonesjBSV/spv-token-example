@@ -8,7 +8,6 @@
     "@emotion/styled": "^11.11.5",
     "@mui/material": "^5.15.20",
     "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.97",
@@ -48,6 +47,16 @@
     ]
   },
   "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.0",
+    "@babel/preset-env": "^7.24.8",
+    "@babel/preset-react": "^7.24.7",
+    "@babel/preset-typescript": "^7.24.7",
+    "@testing-library/react": "^16.0.0",
     "@types/prismjs": "^1.26.4"
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.(ts|tsx)$": "babel-jest"
+    }
   }
 }

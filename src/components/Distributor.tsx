@@ -78,16 +78,15 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
 
   };
 
-  const handleSpvVerification =  () => {
-    /*if (!creatorKey || !hmacKey || !prevTx) return;
+  const handleSpvVerification =  async () => {
+    if (!creatorKey || !hmacKey || !prevTx) return;
 
     const tx = prevTx;
     const merklePath = prevTxMerklePath;
 
-    tx.merklePath = MerklePath.fromHex(merklePath);*/
+    tx.merklePath = MerklePath.fromHex(merklePath);
 
-    //console.log(await tx.verify());
-    console.log(true);
+    console.log(await tx.verify());
 
   }
 
@@ -330,6 +329,8 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
           </TableBody>
         </Table>
       </TableContainer>
+    </Grid>
+    </Grid>
       <div>
         <Button variant="contained" onClick={handleAddInputs} style={{ marginTop: '16px' }}>
           Add Inputs
@@ -360,8 +361,6 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, prevTxMerklePath, has
           Run SPV Check
         </Button>
       </div>
-    </Grid>
-    </Grid>
       {hasInputsOrOutputs(distributorTx) && (
         <div style={{ marginTop: '16px' }}>
           <Typography variant="h6" gutterBottom>
