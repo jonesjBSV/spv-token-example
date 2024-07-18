@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Transaction, PrivateKey, PublicKey, Hash, P2PKH, SatoshisPerKilobyte, MerklePath, TransactionInput } from '@bsv/sdk'
+import { Transaction, PrivateKey, Hash, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
 import { Ticket, HashedTicket } from './Creator';
-import { TextField, Button, Typography, List, ListItem, ListItemText, Paper, Grid, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Checkbox } from '@mui/material';
-import { on } from 'events';
+import { Button, Typography, Paper, Grid, TableContainer, Table, TableHead, TableRow, TableCell, TableBody } from '@mui/material';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
-import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
 import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets,
   spvVerification

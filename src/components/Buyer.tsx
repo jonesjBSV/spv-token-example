@@ -6,7 +6,7 @@ import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP } from './UtilityFunctions';
+import { toHexString, handleSubmitTx, handleGetMerkP } from './UtilityFunctions';
 
 interface Props {
   distributorTx: Transaction;

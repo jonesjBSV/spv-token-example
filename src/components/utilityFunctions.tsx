@@ -1,5 +1,4 @@
 import { Hash, MerklePath, Transaction } from '@bsv/sdk';
-import React, { useState } from'react';
 import { HashedTicket, Ticket } from './Creator';
 
 export const toHexString = (byteArray: number[]) => {

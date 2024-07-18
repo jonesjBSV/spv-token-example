@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Transaction, PrivateKey, TransactionInput, Hash, P2PKH, ARC, SatoshisPerKilobyte } from '@bsv/sdk'
+import { Transaction, PrivateKey, TransactionInput, Hash, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
 import { TextField, Button, Typography, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, Grid } from '@mui/material';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
-import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
 import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets} from './UtilityFunctions';
 
