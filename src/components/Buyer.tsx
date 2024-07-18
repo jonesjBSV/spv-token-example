@@ -322,12 +322,6 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
           </TableBody>
         </Table>
       </TableContainer>
-      <div>
-        <Button variant="contained" onClick={handleHashBuyerTickets} 
-        style={{ marginTop: '16px' }}>
-          Hash Selected Tickets
-        </Button>
-      </div>
     </Grid>
     <Grid item xs={6}>
       <Typography variant="h6" gutterBottom style={{ marginTop: '16px' }}>
@@ -374,6 +368,12 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
           </TableBody>
         </Table>
       </TableContainer>
+      <div>
+        <Button variant="contained" onClick={handleHashBuyerTickets} 
+        style={{ marginTop: '16px' }}>
+          Hash Selected Tickets
+        </Button>
+      </div>
     </Grid>
     </Grid>
       <div>
