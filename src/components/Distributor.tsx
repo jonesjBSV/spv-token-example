@@ -129,7 +129,6 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
   const handleCreateDistributedTransaction = async () => {
 
     const tx = distributorTx;
-
     tx.version = 2;
 
     try {
@@ -152,16 +151,19 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
   };
 
   const handleSubmitTransaction = async () => {
+
     const result = await handleSubmitTx(distributorTx);
     setOutputText(JSON.stringify(result, null, 2));
 
   };
 
   const handleGetMerklePath = async () => {
+
     const merklePath = await handleGetMerkP(distributorTx);
     setDistributorTxMerklePath(merklePath);
     setOutputText(JSON.stringify(merklePath, null, 2));
     onGetMerklePath(merklePath);
+
   };
   
   return (

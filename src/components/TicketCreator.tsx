@@ -57,11 +57,11 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
   const handleAddTicket = () => {
     const newTicket: Ticket = { eventName, section, row, seat };
     setTickets([...tickets, newTicket]);
+    onTicketsCreated(tickets);
   };
 
   const handleCreateHashedTickets = () => {
 
-    onTicketsCreated(tickets);
 
     const newHashedTickets = tickets.map(ticket => ({
       ticket,
@@ -88,6 +88,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
         });
       };
     }
+
     // add change output
     tx.addOutput({
         lockingScript: new P2PKH().lock(PrivateKey.fromWif('L259sfQyASg5rpjxMHCh1XbaoRYAvkNCzrMSRG3kuVp2bA9YveX8').toAddress()),
@@ -113,12 +114,6 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
 
     const tx = prevTx;
     tx.addInput(newInput);
-    
-    /*HeysetInputs([...inputs, newInput]);
-    setSourceTransaction("");
-    setSourceOutputIndex(0);
-    setInputTxPrivKey('');
-    setSequence('0xFFFFFFFF');*/
 
     setPrevTx(tx);
     setOutputText(JSON.stringify(tx, null, 2));
