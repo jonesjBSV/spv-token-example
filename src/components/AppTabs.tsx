@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppBar, Tabs, Tab, Box } from '@mui/material';
-import TicketCreator, { Ticket, HashedTicket } from './TicketCreator';
+import TicketCreator, { Ticket, HashedTicket } from './Creator';
 import Distributor from './Distributor';
 import Buyer from './Buyer';
 import EventGate from './EventGate';

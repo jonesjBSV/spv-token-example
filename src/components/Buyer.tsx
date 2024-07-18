@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Hash, Transaction, PrivateKey, PublicKey, P2PKH, SatoshisPerKilobyte, MerklePath, } from '@bsv/sdk';
 import { Button, Typography, Grid, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Checkbox } from '@mui/material';
-import { HashedTicket, Ticket } from './TicketCreator';
+import { HashedTicket, Ticket } from './Creator';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Transaction, PrivateKey, PublicKey, Hash, P2PKH, SatoshisPerKilobyte, MerklePath, TransactionInput } from '@bsv/sdk'
-import { Ticket, HashedTicket } from './TicketCreator';
+import { Ticket, HashedTicket } from './Creator';
 import { TextField, Button, Typography, List, ListItem, ListItemText, Paper, Grid, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Checkbox } from '@mui/material';
 import { on } from 'events';
 import JSONPretty from 'react-json-pretty';

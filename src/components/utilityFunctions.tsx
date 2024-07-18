@@ -1,6 +1,6 @@
 import { Hash, MerklePath, Transaction } from '@bsv/sdk';
 import React, { useState } from'react';
-import { HashedTicket, Ticket } from './TicketCreator';
+import { HashedTicket, Ticket } from './Creator';
 
 export const toHexString = (byteArray: number[]) => {
     return byteArray.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
