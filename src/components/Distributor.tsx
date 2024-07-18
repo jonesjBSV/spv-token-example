@@ -9,7 +9,7 @@ import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
 import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets,
   spvVerification
- } from './utilityFunctions';
+ } from './UtilityFunctions';
 
 
 

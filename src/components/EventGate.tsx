@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Transaction, PrivateKey, PublicKey, P2PKH, Hash, SatoshisPerKilobyte } from '@bsv/sdk';
 import { Button, Typography, List, ListItem, ListItemText, Paper, Table, TableContainer, TableHead, TableRow, TableCell, TableBody, Grid } from '@mui/material';
 import { HashedTicket, Ticket } from './Creator';
-import { handleSubmitTx, hasInputsOrOutputs, toHexString } from './utilityFunctions';
+import { handleSubmitTx, hasInputsOrOutputs, toHexString } from './UtilityFunctions';
 import JSONPretty from 'react-json-pretty';
 
 interface Props {

@@ -5,7 +5,7 @@ import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets} from './utilityFunctions';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets} from './UtilityFunctions';
 
 interface Props {
   onTransactionSigned: (privateKey: PrivateKey, hmacKey: string) => void;
