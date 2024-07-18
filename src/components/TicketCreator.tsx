@@ -5,6 +5,7 @@ import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP} from './utilityFunctions';
 
 interface Props {
   onTransactionSigned: (privateKey: PrivateKey, hmacKey: string) => void;
@@ -169,66 +170,15 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
   }
 
   const handleSubmitTransaction = async () => {
-    const tx = prevTx;
-
-    try {
-      const response = await fetch('http://localhost:9090/v1/tx', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/plain',
-        },
-        body: JSON.stringify({
-          "rawTx": tx.toHex(),
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      }
-      const responseData = await response.json();
-      console.log(responseData);
-      setOutputText(JSON.stringify(responseData));
-    } catch (error) {
-      console.error(error);
-      return;
-    }
+    handleSubmitTx(prevTx);
+    setOutputText(JSON.stringify(prevTx.toHex(), null, 2));
   };
 
 
   const handleGetMerklePath = async () => {
-    const tx = prevTx;
-
-    try {
-      const response = await fetch('http://localhost:9090/v1/tx/'+tx.id('hex'), {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      }
-      const responseData = await response.json();
-      console.log(responseData.merklePath);
-      console.log(responseData);
-      onGetMerklePath(responseData.merklePath as string);
-      setOutputText(JSON.stringify(responseData));
-    } catch (error) {
-      console.error(error);
-      return;
-    }
-
-  };
-
-
-  const toHexString = (byteArray: number[]) => {
-    return byteArray.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
-  };
-
-  const hasInputsOrOutputs = (tx: Transaction | null) => {
-    return tx && (tx.inputs.length > 0 || tx.outputs.length > 0);
+    const merklePath = await handleGetMerkP(prevTx);
+    setPrevTxMerklePath(merklePath);
+    setOutputText(JSON.stringify(merklePath, null, 2));
   };
 
   return (

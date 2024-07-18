@@ -7,7 +7,9 @@ import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, hasInputsOrOutputs, handleSubmitTx } from './utilityFunctions';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets,
+  spvVerification
+ } from './utilityFunctions';
 
 
 
@@ -25,19 +27,22 @@ interface Props {
   onDistribute: (tx: Transaction, index: number, distributorKeys: PrivateKey[]) => void;
   onSelectDistributedTickets: (tickets: Ticket[]) => void;
   onHashDistributedTickets: (hashedTickets: HashedTicket[]) => void;
+  onGetMerklePath: (merklePath: string) => void;
 }
 
 
-const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, hashedTickets, creatorKey, creatorKeys, hmacKey,
-  creatorTx, tickets, distTicks, distHashedTicks, onDistribute, onSelectDistributedTickets, onHashDistributedTickets }) => {
+const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, hashedTickets, creatorKey, creatorKeys, hmacKey: hmac,
+  creatorTx, tickets, distTicks, distHashedTicks, onDistribute, onSelectDistributedTickets, onHashDistributedTickets, onGetMerklePath }) => {
 
   const [privateKey] = useState<PrivateKey>(new PrivateKey());
-  const [distributedTickets, setDistributedTickets] = useState<Ticket[]>(distTicks);
+  const [distributorTickets, setDistributorTickets] = useState<Ticket[]>(distTicks);
   const [distributedHashedTickets, setDistributedHashedTickets] = useState<HashedTicket[]>(distHashedTicks);
   const [distributorTx, setDistributorTx] = useState<Transaction>(new Transaction());
   const [distributorTxInputIndex, setDistributorTxInputIndex] = useState<number>(0);
   const [distributorKeys, setDistributorKeys] = useState<PrivateKey[]>([]);
   const [spvCheck, setSpvCheck] = useState<boolean>();
+  const [outputText, setOutputText] = useState<string>("");
+  const [distributorTxMerklePath, setDistributorTxMerklePath] = useState<string>("");
 
   useEffect(() => {
     onDistribute(distributorTx, distributorTxInputIndex, distributorKeys);
@@ -46,26 +51,20 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
 
   const handleCreateHashedTickets = () => {
 
-    const newHashedTickets = tickets.map(ticket => ({
-      ticket,
-      hash: Array.from(Hash.sha256hmac(hmacKey, JSON.stringify(ticket))),
-    }));
-    setDistributedHashedTickets(newHashedTickets);
-    onHashDistributedTickets(newHashedTickets);
+    const hashedTickets = createHashedTickets(tickets, hmac)
+
+    setDistributedHashedTickets(hashedTickets);
+    onHashDistributedTickets(hashedTickets);
 
   };
 
   const handleSpvVerification =  async () => {
-    if (!creatorKey || !hmacKey || !creatorTx || !creatorTxMerklePath) return;
+    if (!distributorTx|| !creatorTxMerklePath) return;
 
-    const tx = creatorTx;
-    const merklePath = creatorTxMerklePath;
+    const result = spvVerification(distributorTx, creatorTxMerklePath)
 
-    tx.merklePath = MerklePath.fromHex(merklePath);
-    const result = await tx.verify();
-
+    setOutputText(result.toString());
     console.log(result);
-
   }
 
   const handleClearTx = () => {
@@ -81,7 +80,7 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
         ks.push(PrivateKey.fromRandom());
       }
       for (let i = 0; i < distributedHashedTickets.length; i++) {
-        const key: PrivateKey = PrivateKey.fromString((Hash.sha256hmac(hmacKey, ks[i].toPublicKey().toHash()+(distributedHashedTickets[i].hash.join(''), 'hex'))).join(''), 'hex');
+        const key: PrivateKey = PrivateKey.fromString((Hash.sha256hmac(hmac, ks[i].toPublicKey().toHash()+(distributedHashedTickets[i].hash.join(''), 'hex'))).join(''), 'hex');
         keys.push(key);
         tx.addOutput({
           lockingScript: new P2PKH().lock(key.toAddress()),
@@ -98,6 +97,7 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
     setDistributorKeys(keys);
     setDistributorTx(tx);
     setDistributorTxInputIndex(tx.inputs.length - 1);
+    setOutputText(JSON.stringify(tx, null, 2));
 
   };
 
@@ -122,6 +122,7 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
 
     //console.log(tx.toHex());
     setDistributorTx(tx);
+    setOutputText(JSON.stringify(tx, null, 2));
 
   }
 
@@ -146,13 +147,22 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
     } 
     onDistribute(tx, index, distributorKeys);
     onSelectDistributedTickets(tickets);
+    setOutputText(JSON.stringify(tx.toHex(), null, 2));
 
   };
 
   const handleSubmitTransaction = async () => {
-    await handleSubmitTx(distributorTx);
+    const result = await handleSubmitTx(distributorTx);
+    setOutputText(JSON.stringify(result, null, 2));
+
   };
 
+  const handleGetMerklePath = async () => {
+    const merklePath = await handleGetMerkP(distributorTx);
+    setDistributorTxMerklePath(merklePath);
+    setOutputText(JSON.stringify(merklePath, null, 2));
+    onGetMerklePath(merklePath);
+  };
   
   return (
     <div>
@@ -242,6 +252,11 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
     </Grid>
     </Grid>
       <div>
+        <Button variant="contained" onClick={handleSpvVerification} style={{ marginTop: '16px' }}>
+          Run SPV Check
+        </Button>
+      </div>
+      <div>
         <Button variant="contained" onClick={handleAddInputs} style={{ marginTop: '16px' }}>
           Add Inputs
         </Button>
@@ -267,8 +282,8 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
         </Button>
       </div>
       <div>
-        <Button variant="contained" onClick={handleSpvVerification} style={{ marginTop: '16px' }}>
-          Run SPV Check
+        <Button variant="contained" onClick={handleGetMerklePath} style={{ marginTop: '16px' }}>
+          Get Merkle Path
         </Button>
       </div>
       {hasInputsOrOutputs(distributorTx) && (
@@ -276,7 +291,7 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
           <Typography variant="h6" gutterBottom>
             Created Transaction
           </Typography>
-          <JSONPretty id="json-pretty" className="json-pretty-container" data={JSON.stringify(distributorTx)}></JSONPretty>
+          <JSONPretty id="json-pretty" className="json-pretty-container" data={outputText}></JSONPretty>
         </div>
       )}
     </div>

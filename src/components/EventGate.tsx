@@ -14,7 +14,9 @@ interface Props {
   buyerIndexes: Set<number>;
   buyerTickets: Ticket[];
   hmacKey: string;
+  buyerTxMerklePath: string;
   onEventGateEntry: (tx: Transaction, privateKey: PrivateKey, publicKey: PublicKey) => void;
+  onGetMerklePath: (merklePath: string) => void;
 }
 
 const EventGate: React.FC<Props> = ({ buyerKeys, hmacKey, buyerTickets, buyerIndexes, hashedTickets, buyerTx, buyerTxOutputIndex, buyerKey }) => {

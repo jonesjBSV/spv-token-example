@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Hash, Transaction, PrivateKey, PublicKey, P2PKH, SatoshisPerKilobyte, } from '@bsv/sdk';
+import { Hash, Transaction, PrivateKey, PublicKey, P2PKH, SatoshisPerKilobyte, MerklePath, } from '@bsv/sdk';
 import { Button, Typography, Grid, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Checkbox } from '@mui/material';
 import { HashedTicket, Ticket } from './TicketCreator';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, hasInputsOrOutputs, handleSubmitTx } from './utilityFunctions';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP } from './utilityFunctions';
 
 interface Props {
   distributorTx: Transaction;
@@ -14,13 +14,15 @@ interface Props {
   distributorTickets: Ticket[];
   distributorHashedTickets: HashedTicket[];
   distributorTxInputIndex: number;
+  distributorTxMerklePath: string;
   buyerPublicKey: PublicKey | null;
   hmacKey: string;
   onBuy: (tx: Transaction, buyerTxOutputIndex: number, buyerKeys: PrivateKey[], buyer2Keys: PrivateKey[]) => void;
   onSelectBuyerTickets: (buyerTickets: Ticket[], buyerIndexes: Set<number>) => void;
+  onGetMerklePath: (merklePath: string) => void;
 }
 
-const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, distributorTxInputIndex, distributorTx, distributorKeys, distributorTickets, distributorHashedTickets, buyerPublicKey, hmacKey, onBuy }) => {
+const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distributorTxMerklePath, distributorTxInputIndex, distributorTx, distributorKeys, distributorTickets, distributorHashedTickets, buyerPublicKey, hmacKey, onBuy }) => {
   const [buyerTickets, setBuyerTickets] = useState<Ticket[]>([]);
   const [buyerHashedTickets, setBuyerHashedTickets] = useState<HashedTicket[]>([]);
   const [title, setTitle] = useState<string>("");
@@ -32,6 +34,8 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, distributorTxInputIndex,
   const [buyerKeys, setBuyerKeys] = useState<PrivateKey[]>([]);
   const [buyer2Keys, setBuyer2Keys] = useState<PrivateKey[]>([]);
   const [buyerTxOutputIndex, setBuyerTxOutputIndex] = useState<number>(0);
+  const [buyerTxMerklePath, setBuyerTxMerklePath] = useState<string>("");
+  const [outputText, setOutputText] = useState<string>("");
 
   const prettyPrintJSON = (json: any) => {
     const stringified = JSON.stringify(json, null, 2);
@@ -52,6 +56,12 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, distributorTxInputIndex,
       }
       return newSelected;
     });
+  };
+
+  const handleGetMerklePath = async () => {
+    const merklePath = await handleGetMerkP(buyerTx);
+    setBuyerTxMerklePath(merklePath);
+    setOutputText(JSON.stringify(merklePath, null, 2));
   };
 
   const handleRequestTemplate = async () => {
@@ -147,6 +157,26 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, distributorTxInputIndex,
         satoshis: 10000,
       })
     });
+
+  const handleSpvVerification =  async () => {
+    if (!!hmacKey || !distributorTx || !distributorTxMerklePath) return;
+
+    const tx = distributorTx;
+    const merklePath = distributorTxMerklePath;
+
+    tx.merklePath = MerklePath.fromHex(merklePath);
+    const result = await tx.verify();
+
+    setOutputText(result.toString());
+    console.log(result);
+  }
+
+  const handleGetMerklePath = async () => {
+    const merklePath = await handleGetMerkP(distributorTx);
+    setBuyerTxMerklePath(merklePath);
+    setOutputText(JSON.stringify(merklePath, null, 2));
+    onGetMerklePath(merklePath);
+  };
 
     tx.addOutput({
       lockingScript: new P2PKH().lock(PrivateKey.fromWif('L259sfQyASg5rpjxMHCh1XbaoRYAvkNCzrMSRG3kuVp2bA9YveX8').toAddress()),

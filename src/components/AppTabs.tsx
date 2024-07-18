@@ -61,6 +61,9 @@ const AppTabs: React.FC = () => {
   const [buyer2Keys, setBuyer2Keys] = useState<PrivateKey[]>([]);
   const [buyerTxOutputIndex, setBuyerTxOutputIndex] = useState<number>(0);
   const [buyerIndexes, setBuyerIndexes] = useState<Set<number>>(new Set());
+  const [distributorTxMerklePath, setDistributorTxMerklePath] = useState<string>("");
+  const [buyerTxMerklePath, setBuyerTxMerklePath] = useState<string>("");
+  const [redeemedTxMerklePath, setRedeemedTxMerklePath] = useState<string>("");
 
   const handleChange = (event: React.ChangeEvent<{}>, newValue: number) => {
     setValue(newValue);
@@ -103,11 +106,13 @@ const AppTabs: React.FC = () => {
           onDistribute={(tx, index, distributorKeys) => {setDistributorTx(tx); setDistributorTxInputIndex(index); setDistributorKeys(distributorKeys)}}
           onSelectDistributedTickets={(ticks) => setDistributorTickets(ticks)}
           onHashDistributedTickets={(hashedTicks) => setDistributorHashedTickets(hashedTicks)}
+          onGetMerklePath={(merklePath) => setDistributorTxMerklePath(merklePath)}
         />
       </TabPanel>
       <TabPanel value={value} index={2}>
         <Buyer
           distributorTxInputIndex={distributorTxInputIndex}
+          distributorTxMerklePath={distributorTxMerklePath}
           distributorTx={distributorTx}
           distributorKeys={distributorKeys}
           distributorTickets={distributorTickets}
@@ -116,6 +121,7 @@ const AppTabs: React.FC = () => {
           buyerPublicKey={new PrivateKey().toPublicKey()}
           onBuy={(tx, buyerTxOutputIndex, buyerKeys, buyer2Keys) => {setBuyerTx(tx); setBuyerTxOutputIndex(buyerTxOutputIndex); setBuyerKeys(buyerKeys); setBuyer2Keys(buyer2Keys)}}
           onSelectBuyerTickets={(ticks, indexes) => {setBuyerTickets(ticks); setBuyerIndexes(indexes)}}
+          onGetMerklePath={(merklePath) => setBuyerTxMerklePath(merklePath)}
         />
       </TabPanel>
       <TabPanel value={value} index={3}>
@@ -128,7 +134,9 @@ const AppTabs: React.FC = () => {
           buyerTxOutputIndex={buyerTxOutputIndex}
           buyerKey={creatorKey}
           buyerKeys={buyerKeys}
+          buyerTxMerklePath={buyerTxMerklePath}
           onEventGateEntry={(tx, privateKey, publicKey) => {}}
+          onGetMerklePath={(merklePath) => setRedeemedTxMerklePath(merklePath)}
         />
       </TabPanel>
     </div>
