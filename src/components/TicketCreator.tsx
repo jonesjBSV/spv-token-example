@@ -5,7 +5,7 @@ import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP} from './utilityFunctions';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets} from './utilityFunctions';
 
 interface Props {
   onTransactionSigned: (privateKey: PrivateKey, hmacKey: string) => void;
@@ -62,13 +62,10 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
 
   const handleCreateHashedTickets = () => {
 
+    const hashedTickets = createHashedTickets(tickets, hmacKey);
+    setHashedTickets(hashedTickets);
+    onTicketsHashed(hashedTickets);
 
-    const newHashedTickets = tickets.map(ticket => ({
-      ticket,
-      hash: Array.from(Hash.sha256hmac(hmacKey, JSON.stringify(ticket))),
-    }));
-    setHashedTickets(newHashedTickets);
-    onTicketsHashed(newHashedTickets);
   };
 
   const handleAddOutputs = () => {
