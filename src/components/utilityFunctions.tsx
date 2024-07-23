@@ -1,4 +1,4 @@
-import { Hash, MerklePath, Transaction } from '@bsv/sdk';
+import { ChainTracker, defaultChainTracker, Hash, MerklePath, SatoshisPerKilobyte, Transaction, WhatsOnChain } from '@bsv/sdk';
 import { HashedTicket, Ticket } from './Creator';
 
 export const toHexString = (byteArray: number[]) => {
@@ -36,7 +36,7 @@ export const handleSubmitTx = async (tx: Transaction): Promise<string> => {
     }
   };
 
-export  const handleGetMerkP = async (tx: Transaction): Promise<string> => {
+export  const getMerklePath = async (tx: Transaction): Promise<string> => {
 
     try {
       const response = await fetch('http://localhost:9090/v1/tx/'+tx.id('hex'), {
@@ -50,9 +50,7 @@ export  const handleGetMerkP = async (tx: Transaction): Promise<string> => {
         throw new Error(`Error: ${response.statusText}`);
       }
       const responseData = await response.json();
-      console.log(responseData.merklePath);
-      console.log(responseData);
-      return responseData as string;
+      return responseData;
     } catch (error) {
       console.error(error);
       return error as string;
@@ -60,15 +58,27 @@ export  const handleGetMerkP = async (tx: Transaction): Promise<string> => {
 
   };
 
+const customFetch = (url: string, options?: RequestInit) => {
+  return window.fetch(url, options);
+};
 
-export const spvVerification =  async (tx: Transaction, merklePath: string): Promise<boolean> => {
+export const spvVerification =  async (tx: Transaction): Promise<boolean> => {
 
-    tx.merklePath = MerklePath.fromHex(merklePath);
-    const result = await tx.verify();
-
+  try {
+    
+    const result = await tx.verify("scripts only", new SatoshisPerKilobyte(1));
+     
+    console.log(result.valueOf());
+    //console.log(await tx.verify());
+    //const  result = await tx.verify(new WhatsOnChain("test", ));
+    //console.log(result);
     return result;
-
+  } catch (error) {
+    console.error(error);
+    return false;
   }
+
+}
 
 export  const createHashedTickets = (tickets: Ticket[], hmac: string): HashedTicket[] => {
 

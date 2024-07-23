@@ -47,15 +47,15 @@ const AppTabs: React.FC = () => {
   const [distributorTx, setDistributorTx] = useState<Transaction>(new Transaction());
   const [distributorTxInputIndex, setDistributorTxInputIndex] = useState<number>(0);
   const [buyerTx, setBuyerTx] = useState<Transaction>(new Transaction());
-  const [createdTx, setCreatedTx] = useState<Transaction>(new Transaction());
+  const [creatorTx, setCreatorTx] = useState<Transaction>(new Transaction());
   const [createdTickets, setCreatedTickets] = useState<Ticket[]>([]);
   const [createdHashedTickets, setcreatedHashedTickets] = useState<HashedTicket[]>([]);
   const [distributorTickets, setDistributorTickets] = useState<Ticket[]>([]);
   const [distributorHashedTickets, setDistributorHashedTickets] = useState<HashedTicket[]>([]);
   const [distributorKeys, setDistributorKeys] = useState<PrivateKey[]>([]);
   const [privKey, setPrivKey] = useState<PrivateKey>(new PrivateKey())
-  const [creatorTxMerklePath, setCreatorTxMerklePath] = useState<string>("");
-  const [prevTxOutputIndex, setPrevTxOutputIndex] = useState<number>(0);
+  const [creatorTxMerklePaths, setCreatorTxMerklePaths] = useState<string[]>([]);
+  const [prevTxOutputIndex, setCreatorTxOutputIndex] = useState<number>(0);
   const [buyerTickets, setBuyerTickets] = useState<Ticket[]>([]);
   const [buyerKeys, setBuyerKeys] = useState<PrivateKey[]>([]);
   const [buyer2Keys, setBuyer2Keys] = useState<PrivateKey[]>([]);
@@ -83,25 +83,23 @@ const AppTabs: React.FC = () => {
         <TicketCreator
           ticks={createdTickets}
           hashedTicks={createdHashedTickets}
-          createdTx={createdTx}
-          onGetMerklePath={(merklePath) => setCreatorTxMerklePath(merklePath)}
+          onGetMerklePaths={(merklePaths) => setCreatorTxMerklePaths(merklePaths)}
           onTransactionSigned={(privateKey, hmacKey) => {setPrivKey(privateKey); setHmKey(hmacKey)}}
-          onTransactionCreated={(tx, creatorKeys, txOutputIndex) => {setCreatedTx(tx); setCreatorKeys(creatorKeys); setPrevTxOutputIndex(txOutputIndex)}}
+          onTransactionCreated={(tx, creatorKeys, txOutputIndex) => {setCreatorTx(tx); setCreatorKeys(creatorKeys); setCreatorTxOutputIndex(txOutputIndex)}}
           onTicketsCreated={(tickets) => setCreatedTickets(tickets)}
           onTicketsHashed={(hashedTickets) => setcreatedHashedTickets(hashedTickets)}
         />
       </TabPanel>
       <TabPanel value={value} index={1}>
         <Distributor
-          distTicks={distributorTickets}
           distHashedTicks={distributorHashedTickets}
           hashedTickets={createdHashedTickets}
           creatorKey={creatorKey}
           creatorKeys={creatorKeys}
           hmacKey={hmKey}
-          creatorTx={createdTx}
-          creatorTxMerklePath={creatorTxMerklePath}
-          prevTxOutputIndex={prevTxOutputIndex}
+          creatorTx={creatorTx}
+          creatorTxMerklePaths={creatorTxMerklePaths}
+          creatorTxOutputIndex={prevTxOutputIndex}
           tickets={createdTickets}
           onDistribute={(tx, index, distributorKeys) => {setDistributorTx(tx); setDistributorTxInputIndex(index); setDistributorKeys(distributorKeys)}}
           onSelectDistributedTickets={(ticks) => setDistributorTickets(ticks)}

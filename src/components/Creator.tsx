@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, PrivateKey, TransactionInput, Hash, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
-import { TextField, Button, Typography, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, Grid } from '@mui/material';
+import { TextField, Button, Typography, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, Grid, Checkbox } from '@mui/material';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets} from './UtilityFunctions';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx, getMerklePath, createHashedTickets} from './UtilityFunctions';
 
 interface Props {
   onTransactionSigned: (privateKey: PrivateKey, hmacKey: string) => void;
-  onTransactionCreated: (tx: Transaction, creatorKeys: PrivateKey[], prevTxOutputIndex: number) => void;
+  onTransactionCreated: (creatorTx: Transaction, creatorKeys: PrivateKey[], creatorTxOutputIndex: number) => void;
   onTicketsCreated: (tickets: Ticket[]) => void;
   onTicketsHashed: (hashedTickets: HashedTicket[]) => void;
-  onGetMerklePath: (merklePath: string) => void;
+  onGetMerklePaths: (merklePath: string[]) => void;
   ticks: Ticket[];
   hashedTicks: HashedTicket[];
-  createdTx: Transaction;
 }
 
 export interface Ticket {
@@ -29,7 +28,7 @@ export interface HashedTicket {
   hash: number[];
 }
 
-const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, onTransactionCreated, onTicketsCreated, onTicketsHashed, ticks, hashedTicks, createdTx }) => {
+const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned, onTransactionCreated, onTicketsCreated, onTicketsHashed, ticks, hashedTicks }) => {
   const [eventName, setEvent] = useState('');
   const [section, setSection] = useState('');
   const [row, setRow] = useState('');
@@ -38,8 +37,8 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
   const [privateKey] = useState<PrivateKey>(new PrivateKey());
   const [hmacKey] = useState<string>(PrivateKey.fromRandom().toString());
   const [hashedTickets, setHashedTickets] = useState<HashedTicket[]>(hashedTicks);
-  const [prevTx, setPrevTx] = useState<Transaction>(new Transaction());
-  const [prevTxOutputIndex, setPrevTxOutputIndex] = useState<number>(0);
+  const [creatorTx, setCreatorTx] = useState<Transaction>(new Transaction());
+  const [creatorTxOutputIndex, setCreatorTxOutputIndex] = useState<number>(0);
   const [inputs, setInputs] = useState<TransactionInput[]>([]);
   const [sourceTransaction, setSourceTransaction] = useState<string>("");
   const [sourceOutputIndex, setSourceOutputIndex] = useState<number>(0);
@@ -48,6 +47,9 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
   const [creatorKeys, setCreatorKeys] = useState<PrivateKey[]>([]);
   const [prevTxMerklePath, setPrevTxMerklePath] = useState<string>("");
   const [outputText, setOutputText] = useState<string>("");
+  const [tranches, setTranches] = useState<Transaction[]>([]);
+  const [selectedTranches, setSelectedTranches] = useState<number[]>([]);
+
 
   useEffect(() => {
     onTransactionSigned(privateKey, hmacKey);
@@ -56,7 +58,6 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
   const handleAddTicket = () => {
     const newTicket: Ticket = { eventName, section, row, seat };
     setTickets([...tickets, newTicket]);
-    onTicketsCreated(tickets);
   };
 
   const handleCreateHashedTickets = () => {
@@ -64,11 +65,21 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
     const hashedTickets = createHashedTickets(tickets, hmacKey);
     setHashedTickets(hashedTickets);
     onTicketsHashed(hashedTickets);
+    onTicketsCreated(tickets);
 
   };
 
+  const handleTrancheSelection = (index: number) => {
+    setSelectedTranches(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index) 
+        : [...prev, index]
+    );
+  };
+
+
   const handleAddOutputs = () => {
-    const tx = prevTx;
+    const tx = creatorTx;
     const keys = creatorKeys;
     if (keys.length < 1) {
       const ks: PrivateKey[] = [];
@@ -91,10 +102,10 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
         change: true
     });
     setCreatorKeys(keys);
-    setPrevTx(tx);
+    setCreatorTx(tx);
     setOutputText(JSON.stringify(tx, null, 2));
     if(hashedTickets.length !== 0) {
-      setPrevTxOutputIndex(hashedTickets.length + 1);
+      setCreatorTxOutputIndex(hashedTickets.length + 1);
     }
     onTransactionSigned(privateKey, hmacKey);
   }
@@ -108,10 +119,10 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
       sequence: parseInt(sequence, 16),
     };
 
-    const tx = prevTx;
+    const tx = creatorTx;
     tx.addInput(newInput);
 
-    setPrevTx(tx);
+    setCreatorTx(tx);
     setOutputText(JSON.stringify(tx, null, 2));
     onTransactionSigned(privateKey, hmacKey);
   };
@@ -119,17 +130,13 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
 
   const handleCreateTranche = async () => {
 
-    const tx = prevTx
+    const tx = creatorTx
     tx.version = 2;
 
-    // Ensure the transaction has inputs and outputs
     if (tx.inputs.length === 0 || tx.outputs.length === 0) {
       throw new Error('Transaction must have at least one input and one output');
     }
 
-    tx.version = 2;
-
-    // Calc fee
     await tx.fee(new SatoshisPerKilobyte(1));
 
     try {
@@ -139,10 +146,11 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
       return;
     }
 
-    console.log(JSON.stringify({
-      "rawTx": tx.toHex()}
-    ));
-    setPrevTx(tx);
+    setTranches(prevTranches => [...prevTranches, tx]);
+    setCreatorTx(new Transaction());
+    setTickets([]);
+    setHashedTickets([]);
+
     let index = 0;
     if (hashedTickets.length !== 0) {
       index = hashedTickets.length;
@@ -157,19 +165,36 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
   }
 
   const handleClearTx = () => {
-    setPrevTx(new Transaction());
+    setCreatorTx(new Transaction());
   }
-
-  const handleSubmitTransaction = async () => {
-    handleSubmitTx(prevTx);
-    setOutputText(JSON.stringify(prevTx.toHex(), null, 2));
+  const submitSelectedTranchesToARC = async () => {
+    for (const index of selectedTranches) {
+      const tranche = tranches[index];
+      try {
+        const result = await handleSubmitTx(tranche);
+        console.log(`Tranche ${index + 1} submitted to ARC:`, result);
+      } catch (error) {
+        console.error(`Error submitting tranche ${index + 1} to ARC:`, error);
+      }
+    }
+    setOutputText(`Submitted ${selectedTranches.length} tranches to ARC`);
   };
 
 
-  const handleGetMerklePath = async () => {
-    const merklePath = await handleGetMerkP(prevTx);
-    setPrevTxMerklePath(merklePath);
-    setOutputText(JSON.stringify(merklePath, null, 2));
+  const getMerklePathsForSelectedTranches = async () => {
+    const merklePaths: string[] = [];
+    for (const index of selectedTranches) {
+      const tranche = tranches[index];
+      try {
+        const result = await getMerklePath(tranche);
+        merklePaths.push(Object.values(result)[3]);
+        console.log(`Tranche ${index + 1} submitted to ARC:`, result);
+      } catch (error) {
+        console.error(`Error submitting tranche ${index + 1} to ARC:`, error);
+      }
+    }
+    setOutputText(`Submitted ${selectedTranches.length} tranches to ARC`);
+    onGetMerklePaths(merklePaths);
   };
 
   return (
@@ -313,21 +338,11 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
         </Button>
       </div>
       <div>
-        <Button variant="contained" onClick={handleSubmitTransaction} style={{ marginTop: '16px' }}>
-          Submit Transaction
-        </Button>
-      </div>
-      <div>
-        <Button variant="contained" onClick={handleGetMerklePath} style={{ marginTop: '16px' }}>
-          Get Merkle Path
-        </Button>
-      </div>
-      <div>
         <Button variant="contained" onClick={handleClearTx} style={{ marginTop: '16px' }}>
           Clear TX
         </Button>
       </div>
-      {hasInputsOrOutputs(prevTx) && (
+      {hasInputsOrOutputs(creatorTx) && (
         <div style={{ marginTop: '16px' }}>
           <Typography variant="h6" gutterBottom>
             Created Transaction
@@ -335,6 +350,54 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, 
           <JSONPretty id="json-pretty" className="json-pretty-container" data={outputText}></JSONPretty>
         </div>
       )}
+      <Typography variant="h6" gutterBottom style={{ marginTop: '16px' }}>
+        Created Tranches
+      </Typography>
+      <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Select</TableCell>
+                <TableCell>Tranche #</TableCell>
+                <TableCell>Transaction ID</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {tranches.map((tranche, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedTranches.includes(idx)}
+                      onChange={() => handleTrancheSelection(idx)}
+                    />
+                  </TableCell>
+                  <TableCell>{idx + 1}</TableCell>
+                  <TableCell>{tranche.id('hex')}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+      </TableContainer>
+        <div>
+          <Button 
+            variant="contained" 
+            onClick={submitSelectedTranchesToARC} 
+            disabled={selectedTranches.length === 0}
+            style={{ marginTop: '16px' }} 
+          >
+            Submit Selected Tranches to ARC
+          </Button>
+        </div>
+        <div>
+          <Button 
+            variant="contained" 
+            onClick={getMerklePathsForSelectedTranches} 
+            disabled={selectedTranches.length === 0}
+            style={{ marginTop: '16px' }} 
+          >
+            Get Merkle Paths for Selected Tranches
+          </Button>
+        </div>
     </div>
   );
 };

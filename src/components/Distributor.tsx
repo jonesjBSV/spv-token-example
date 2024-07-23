@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Transaction, PrivateKey, Hash, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
+import { Transaction, PrivateKey, Hash, P2PKH, SatoshisPerKilobyte, MerklePath, defaultChainTracker } from '@bsv/sdk'
 import { Ticket, HashedTicket } from './Creator';
 import { Button, Typography, Paper, Grid, TableContainer, Table, TableHead, TableRow, TableCell, TableBody } from '@mui/material';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, hasInputsOrOutputs, handleSubmitTx, handleGetMerkP, createHashedTickets,
+import { toHexString, hasInputsOrOutputs, handleSubmitTx, getMerklePath, createHashedTickets,
   spvVerification
  } from './UtilityFunctions';
 
@@ -17,10 +17,9 @@ interface Props {
   creatorKeys: PrivateKey[];
   hmacKey: string;
   creatorTx: Transaction;
-  creatorTxMerklePath: string;
-  prevTxOutputIndex: number;
+  creatorTxMerklePaths: string[];
+  creatorTxOutputIndex: number;
   tickets: Ticket[];
-  distTicks: Ticket[];
   distHashedTicks: HashedTicket[]
   onDistribute: (tx: Transaction, index: number, distributorKeys: PrivateKey[]) => void;
   onSelectDistributedTickets: (tickets: Ticket[]) => void;
@@ -29,18 +28,17 @@ interface Props {
 }
 
 
-const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, hashedTickets, creatorKey, creatorKeys, hmacKey: hmac,
-  creatorTx, tickets, distTicks, distHashedTicks, onDistribute, onSelectDistributedTickets, onHashDistributedTickets, onGetMerklePath }) => {
+const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex, creatorTxMerklePaths, hashedTickets, creatorKey, creatorKeys, hmacKey: hmac,
+  creatorTx, tickets, distHashedTicks, onDistribute, onSelectDistributedTickets, onHashDistributedTickets, onGetMerklePath }) => {
 
   const [privateKey] = useState<PrivateKey>(new PrivateKey());
-  const [distributorTickets, setDistributorTickets] = useState<Ticket[]>(distTicks);
-  const [distributedHashedTickets, setDistributedHashedTickets] = useState<HashedTicket[]>(distHashedTicks);
+  const [distributorHashedTickets, setDistributorHashedTickets] = useState<HashedTicket[]>(distHashedTicks);
   const [distributorTx, setDistributorTx] = useState<Transaction>(new Transaction());
   const [distributorTxInputIndex, setDistributorTxInputIndex] = useState<number>(0);
   const [distributorKeys, setDistributorKeys] = useState<PrivateKey[]>([]);
-  const [spvCheck, setSpvCheck] = useState<boolean>();
   const [outputText, setOutputText] = useState<string>("");
   const [distributorTxMerklePath, setDistributorTxMerklePath] = useState<string>("");
+  const [ctx, setCtx] = useState<Transaction>(creatorTx);
 
   useEffect(() => {
     onDistribute(distributorTx, distributorTxInputIndex, distributorKeys);
@@ -51,19 +49,46 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
 
     const hashedTickets = createHashedTickets(tickets, hmac)
 
-    setDistributedHashedTickets(hashedTickets);
+    setDistributorHashedTickets(hashedTickets);
     onHashDistributedTickets(hashedTickets);
 
   };
 
-  const handleSpvVerification =  async () => {
-    if (!distributorTx|| !creatorTxMerklePath) return;
-
-    const result = spvVerification(distributorTx, creatorTxMerklePath)
-
-    setOutputText(result.toString());
-    console.log(result);
-  }
+  const handleSpvVerification = async () => {
+    if (!creatorTx || !creatorTxMerklePaths) {
+      console.log("No creator transaction or merkle path");
+      return;
+    }
+  
+    try {
+      const tx = creatorTx;
+      const merklePath = MerklePath.fromHex(creatorTxMerklePaths[0]);
+      tx.merklePath = merklePath;
+  
+      // Verify the merkle proof
+      const isValidMerkleProof = await tx.verify("scripts only", new SatoshisPerKilobyte(1));
+      if (!isValidMerkleProof) {
+        console.error('Invalid merkle proof');
+        setOutputText('SPV Check Failed: Invalid merkle proof');
+        return;
+      }
+  
+      // Verify the transaction
+      const verificationResult = await tx.verify('scripts only', new SatoshisPerKilobyte(1));
+      
+      if (verificationResult) {
+        console.log('SPV Check Passed:', verificationResult);
+        setOutputText(`SPV Check Passed: ${JSON.stringify(verificationResult, null, 2)}`);
+      } else {
+        console.error('SPV Check Failed:', verificationResult);
+        setOutputText(`SPV Check Failed: ${JSON.stringify(verificationResult, null, 2)}`);
+      }
+    } catch (error) {
+      console.error('SPV Verification error:', error);
+      setOutputText(`SPV Check Error: ${error}`);
+    }
+  };
+  
 
   const handleClearTx = () => {
     setDistributorTx(new Transaction());
@@ -74,11 +99,11 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
     const keys: PrivateKey[] = [];
     if (keys.length < 1) {
       const ks: PrivateKey[] = [];
-      for(let i = 0; i < distributedHashedTickets.length; i++) {
+      for(let i = 0; i < distributorHashedTickets.length; i++) {
         ks.push(PrivateKey.fromRandom());
       }
-      for (let i = 0; i < distributedHashedTickets.length; i++) {
-        const key: PrivateKey = PrivateKey.fromString((Hash.sha256hmac(hmac, ks[i].toPublicKey().toHash()+(distributedHashedTickets[i].hash.join(''), 'hex'))).join(''), 'hex');
+      for (let i = 0; i < distributorHashedTickets.length; i++) {
+        const key: PrivateKey = PrivateKey.fromString((Hash.sha256hmac(hmac, ks[i].toPublicKey().toHash()+(distributorHashedTickets[i].hash.join(''), 'hex'))).join(''), 'hex');
         keys.push(key);
         tx.addOutput({
           lockingScript: new P2PKH().lock(key.toAddress()),
@@ -102,9 +127,14 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
   const handleAddInputs = () => {
     if (!creatorKeys) return;
     const tx = distributorTx;
+    const ctx = creatorTx;
+
+    console.log(creatorTxMerklePaths[0]);
+    ctx.merklePath = MerklePath.fromHex(creatorTxMerklePaths[0]);
+
     tickets.forEach((ticket, index) => {
       tx.addInput({
-        sourceTransaction: creatorTx,
+        sourceTransaction: ctx,
         sourceOutputIndex: index,
         unlockingScriptTemplate: new P2PKH().unlock(creatorKeys[index]),
         sequence: 0xFFFFFFFF,
@@ -112,13 +142,13 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
     });
 
     tx.addInput({
-      sourceTransaction: creatorTx,
+      sourceTransaction: ctx,
       sourceOutputIndex: prevTxOutputIndex,
       unlockingScriptTemplate: new P2PKH().unlock(PrivateKey.fromWif('L259sfQyASg5rpjxMHCh1XbaoRYAvkNCzrMSRG3kuVp2bA9YveX8')),
       sequence: 0xFFFFFFFF,
     });
 
-    //console.log(tx.toHex());
+    setCtx(ctx);
     setDistributorTx(tx);
     setOutputText(JSON.stringify(tx, null, 2));
 
@@ -139,8 +169,8 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
     console.log(JSON.stringify({"rawTx": tx.toHex()}));
     setDistributorTx(tx);
     let index = 0;
-    if (distributedHashedTickets.length !== 0) {
-      index = distributedHashedTickets.length;
+    if (distributorHashedTickets.length !== 0) {
+      index = distributorHashedTickets.length;
     } 
     onDistribute(tx, index, distributorKeys);
     onSelectDistributedTickets(tickets);
@@ -157,7 +187,7 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
 
   const handleGetMerklePath = async () => {
 
-    const merklePath = await handleGetMerkP(distributorTx);
+    const merklePath = await getMerklePath(distributorTx);
     setDistributorTxMerklePath(merklePath);
     setOutputText(JSON.stringify(merklePath, null, 2));
     onGetMerklePath(merklePath);
@@ -235,7 +265,7 @@ const Distributor: React.FC<Props> = ({ prevTxOutputIndex, creatorTxMerklePath, 
             </TableRow>
           </TableHead>
           <TableBody>
-            {distributedHashedTickets.map((hashedTicket, idx) => (
+            {distributorHashedTickets.map((hashedTicket, idx) => (
               <TableRow key={idx}>
                 <TableCell>{Object.values(hashedTicket.ticket).toString()}</TableCell>
                 <TableCell>{toHexString(hashedTicket.hash)}</TableCell>

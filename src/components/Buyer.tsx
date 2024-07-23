@@ -6,7 +6,7 @@ import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, handleSubmitTx, handleGetMerkP } from './UtilityFunctions';
+import { toHexString, handleSubmitTx, getMerklePath } from './UtilityFunctions';
 
 interface Props {
   distributorTx: Transaction;
@@ -59,7 +59,7 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
   };
 
   const handleGetMerklePath = async () => {
-    const merklePath = await handleGetMerkP(buyerTx);
+    const merklePath = await getMerklePath(buyerTx);
     setBuyerTxMerklePath(merklePath);
     setOutputText(JSON.stringify(merklePath, null, 2));
   };
@@ -172,7 +172,7 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
   }
 
   const handleGetMerklePath = async () => {
-    const merklePath = await handleGetMerkP(distributorTx);
+    const merklePath = await getMerklePath(distributorTx);
     setBuyerTxMerklePath(merklePath);
     setOutputText(JSON.stringify(merklePath, null, 2));
     onGetMerklePath(merklePath);
