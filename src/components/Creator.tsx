@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Transaction, PrivateKey, TransactionInput, Hash, P2PKH, SatoshisPerKilobyte } from '@bsv/sdk'
+import { Transaction, PrivateKey, PublicKey, Hash, P2PKH, SatoshisPerKilobyte, TransactionInput } from '@bsv/sdk';
 import { TextField, Button, Typography, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, Grid, Checkbox } from '@mui/material';
 import JSONPretty from 'react-json-pretty';
-import 'react-json-pretty/themes/monikai.css';
-import 'prismjs/themes/prism-tomorrow.css';
-import { toHexString, hasInputsOrOutputs, handleSubmitTx, getMerklePath, createHashedTickets} from './UtilityFunctions';
+import { toHexString, hasInputsOrOutputs, handleSubmitTx, getMerklePath, createHashedTickets } from './UtilityFunctions';
 
 interface Props {
   onTransactionSigned: (privateKey: PrivateKey, hmacKey: string) => void;
@@ -39,7 +37,6 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
   const [hashedTickets, setHashedTickets] = useState<HashedTicket[]>(hashedTicks);
   const [creatorTx, setCreatorTx] = useState<Transaction>(new Transaction());
   const [creatorTxOutputIndex, setCreatorTxOutputIndex] = useState<number>(0);
-  const [inputs, setInputs] = useState<TransactionInput[]>([]);
   const [sourceTransaction, setSourceTransaction] = useState<string>("");
   const [sourceOutputIndex, setSourceOutputIndex] = useState<number>(0);
   const [inputTxPrivKey, setInputTxPrivKey] = useState('');
@@ -47,7 +44,8 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
   const [creatorKeys, setCreatorKeys] = useState<PrivateKey[]>([]);
   const [prevTxMerklePath, setPrevTxMerklePath] = useState<string>("");
   const [outputText, setOutputText] = useState<string>("");
-  const [tranches, setTranches] = useState<Transaction[]>([]);
+  const [tranches, setTranches] = useState<{tx: Transaction, merklePath: string}[]>([]);
+  const [distributorPublicKeys, setDistributorPublicKeys] = useState<PublicKey[]>([]);
   const [selectedTranches, setSelectedTranches] = useState<number[]>([]);
 
 
@@ -68,15 +66,6 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
     onTicketsCreated(tickets);
 
   };
-
-  const handleTrancheSelection = (index: number) => {
-    setSelectedTranches(prev => 
-      prev.includes(index) 
-        ? prev.filter(i => i !== index) 
-        : [...prev, index]
-    );
-  };
-
 
   const handleAddOutputs = () => {
     const tx = creatorTx;
@@ -137,16 +126,17 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
       throw new Error('Transaction must have at least one input and one output');
     }
 
-    await tx.fee(new SatoshisPerKilobyte(1));
-
     try {
+      await tx.fee(new SatoshisPerKilobyte(1));
       await tx.sign();
     } catch (error) {
       console.error(error);
       return;
     }
 
-    setTranches(prevTranches => [...prevTranches, tx]);
+    const merklePath = "";
+
+    setTranches(prevTranches => [...prevTranches, { tx, merklePath }]);
     setCreatorTx(new Transaction());
     setTickets([]);
     setHashedTickets([]);
@@ -167,11 +157,20 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
   const handleClearTx = () => {
     setCreatorTx(new Transaction());
   }
+
+  const handleTrancheSelection = (index: number) => {
+    setSelectedTranches(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index) 
+        : [...prev, index]
+    );
+  };
+
   const submitSelectedTranchesToARC = async () => {
     for (const index of selectedTranches) {
       const tranche = tranches[index];
       try {
-        const result = await handleSubmitTx(tranche);
+        const result = await handleSubmitTx(tranche.tx);
         console.log(`Tranche ${index + 1} submitted to ARC:`, result);
       } catch (error) {
         console.error(`Error submitting tranche ${index + 1} to ARC:`, error);
@@ -186,8 +185,8 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
     for (const index of selectedTranches) {
       const tranche = tranches[index];
       try {
-        const result = await getMerklePath(tranche);
-        merklePaths.push(Object.values(result)[3]);
+        const result = await getMerklePath(tranche.tx);
+        tranche.merklePath = Object.values(result)[3];
         console.log(`Tranche ${index + 1} submitted to ARC:`, result);
       } catch (error) {
         console.error(`Error submitting tranche ${index + 1} to ARC:`, error);
@@ -372,7 +371,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
                     />
                   </TableCell>
                   <TableCell>{idx + 1}</TableCell>
-                  <TableCell>{tranche.id('hex')}</TableCell>
+                  <TableCell>{tranche.tx.id('hex')}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
