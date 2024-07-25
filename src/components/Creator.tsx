@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Transaction, PrivateKey, PublicKey, Hash, P2PKH, SatoshisPerKilobyte, TransactionInput } from '@bsv/sdk';
+import { Transaction, PrivateKey, PublicKey, Hash, P2PKH, SatoshisPerKilobyte, TransactionInput, MerklePath } from '@bsv/sdk';
 import { TextField, Button, Typography, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, Grid, Checkbox } from '@mui/material';
 import JSONPretty from 'react-json-pretty';
 import { toHexString, hasInputsOrOutputs, handleSubmitTx, getMerklePath, createHashedTickets } from './UtilityFunctions';
+import 'react-json-pretty/themes/monikai.css';
+import 'prismjs/themes/prism-tomorrow.css';
 
 interface Props {
-  onTransactionSigned: (privateKey: PrivateKey, hmacKey: string) => void;
-  onTransactionCreated: (creatorTx: Transaction, creatorKeys: PrivateKey[], creatorTxOutputIndex: number) => void;
-  onTicketsCreated: (tickets: Ticket[]) => void;
-  onTicketsHashed: (hashedTickets: HashedTicket[]) => void;
-  onGetMerklePaths: (merklePath: string[]) => void;
   ticks: Ticket[];
   hashedTicks: HashedTicket[];
+  creatorTranches: Tranche[];
+  distPubKeys: PublicKey[];
+  onTransactionSigned: (privateKey: PrivateKey, hmacKey: string) => void;
+  onTicketsCreated: (tickets: Ticket[]) => void;
+  onTicketsHashed: (hashedTickets: HashedTicket[]) => void;
+  onGetMerklePath: (merklePath: string) => void;
+  onTrancheCreated: (tranches: Tranche[]) => void;
+  onRequestDistributorPubKeys: (numKeys: number) => void;
+  onDistributorTxCreated: (distributorTx: Transaction) => void;
 }
 
 export interface Ticket {
@@ -26,7 +32,14 @@ export interface HashedTicket {
   hash: number[];
 }
 
-const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned, onTransactionCreated, onTicketsCreated, onTicketsHashed, ticks, hashedTicks }) => {
+export interface Tranche {
+  tx: Transaction;
+  merklePath: string;
+  hashedTickets: HashedTicket[];
+}
+
+const TicketCreator: React.FC<Props> = ({ onGetMerklePath, onTransactionSigned, onDistributorTxCreated, onTicketsCreated, onTicketsHashed, onTrancheCreated,
+    onRequestDistributorPubKeys, ticks, hashedTicks, creatorTranches, distPubKeys }) => {
   const [eventName, setEvent] = useState('');
   const [section, setSection] = useState('');
   const [row, setRow] = useState('');
@@ -42,11 +55,10 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
   const [inputTxPrivKey, setInputTxPrivKey] = useState('');
   const [sequence, setSequence] = useState<string>('0xFFFFFFFF');
   const [creatorKeys, setCreatorKeys] = useState<PrivateKey[]>([]);
-  const [prevTxMerklePath, setPrevTxMerklePath] = useState<string>("");
   const [outputText, setOutputText] = useState<string>("");
-  const [tranches, setTranches] = useState<{tx: Transaction, merklePath: string}[]>([]);
-  const [distributorPublicKeys, setDistributorPublicKeys] = useState<PublicKey[]>([]);
+  const [tranches, setTranches] = useState<Tranche[]>(creatorTranches);
   const [selectedTranches, setSelectedTranches] = useState<number[]>([]);
+  const [distributorTransaction, setDistributorTransaction] = useState<Transaction>(new Transaction());
 
 
   useEffect(() => {
@@ -69,6 +81,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
 
   const handleAddOutputs = () => {
     const tx = creatorTx;
+    tx.version = 2;
     const keys = creatorKeys;
     if (keys.length < 1) {
       const ks: PrivateKey[] = [];
@@ -94,13 +107,12 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
     setCreatorTx(tx);
     setOutputText(JSON.stringify(tx, null, 2));
     if(hashedTickets.length !== 0) {
-      setCreatorTxOutputIndex(hashedTickets.length + 1);
+      setCreatorTxOutputIndex(hashedTickets.length);
     }
     onTransactionSigned(privateKey, hmacKey);
   }
   
   const handleAddInput = () => {
-    console.log(inputTxPrivKey)
     const newInput: TransactionInput = {
       sourceTransaction: Transaction.fromHex(sourceTransaction),
       sourceOutputIndex: sourceOutputIndex,
@@ -109,6 +121,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
     };
 
     const tx = creatorTx;
+    tx.version = 2;
     tx.addInput(newInput);
 
     setCreatorTx(tx);
@@ -118,39 +131,42 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
 
 
   const handleCreateTranche = async () => {
-
-    const tx = creatorTx
-    tx.version = 2;
-
-    if (tx.inputs.length === 0 || tx.outputs.length === 0) {
+    if (creatorTx.inputs.length === 0 || creatorTx.outputs.length === 0) {
       throw new Error('Transaction must have at least one input and one output');
     }
+    const tx = creatorTx
+    const tranches$ = tranches;
+    tx.version = 2;
 
     try {
+
       await tx.fee(new SatoshisPerKilobyte(1));
       await tx.sign();
+
+    const t: Tranche = {
+      tx: tx,
+      merklePath: "",
+      hashedTickets: hashedTickets
+    }
+
+    tranches$.push(t);
+
+    setOutputText(JSON.stringify({
+      "rawTx": tx.toHex()
+    }, null, 2));
+
+    onTransactionSigned(privateKey, hmacKey);
+
     } catch (error) {
       console.error(error);
       return;
     }
 
-    const merklePath = "";
-
-    setTranches(prevTranches => [...prevTranches, { tx, merklePath }]);
+    setTranches(tranches$);
+    onTrancheCreated(tranches$);
     setCreatorTx(new Transaction());
     setTickets([]);
     setHashedTickets([]);
-
-    let index = 0;
-    if (hashedTickets.length !== 0) {
-      index = hashedTickets.length;
-    } 
-    setOutputText(JSON.stringify({
-      "rawTx": tx.toHex()
-    }, null, 2));
-
-    onTransactionCreated(tx, creatorKeys, index);
-    onTransactionSigned(privateKey, hmacKey);
 
   }
 
@@ -181,19 +197,103 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
 
 
   const getMerklePathsForSelectedTranches = async () => {
-    const merklePaths: string[] = [];
+    const ts = tranches;
     for (const index of selectedTranches) {
-      const tranche = tranches[index];
       try {
-        const result = await getMerklePath(tranche.tx);
-        tranche.merklePath = Object.values(result)[3];
-        console.log(`Tranche ${index + 1} submitted to ARC:`, result);
+        const result = await getMerklePath(ts[index].tx);
+        ts[index].merklePath = Object.values(result)[3];
+        console.log(`Tranche ${index + 1} Merkle Path:`, result);
+
+        const tx2 = ts[index].tx.inputs[0].sourceTransaction ?? new Transaction();
+        const result2 = await getMerklePath(tx2);
+        tx2.merklePath = MerklePath.fromHex(Object.values(result2)[3]);
+        console.log(`Tranche ${index + 1} Merkle Path:`, result2);
+        if (ts[index].tx.inputs[0] && ts[index].tx.inputs[0].sourceTransaction) {
+          const sourceTransaction = ts[index].tx.inputs[0].sourceTransaction;
+          if (sourceTransaction) {
+            sourceTransaction.merklePath = MerklePath.fromHex(Object.values(result2)[3]);
+          }
+        }
+        
       } catch (error) {
-        console.error(`Error submitting tranche ${index + 1} to ARC:`, error);
+        console.error(`Error Fetching Merkle Path ${index + 1} to ARC:`, error);
       }
     }
-    setOutputText(`Submitted ${selectedTranches.length} tranches to ARC`);
-    onGetMerklePaths(merklePaths);
+    setOutputText(`Fetched ${selectedTranches.length} Merkle Paths`);
+    setTranches(ts);
+    onTrancheCreated(ts);
+  };
+
+  const handleRequestDistributorPublicKeys = () => {
+    console.log(selectedTranches[0]);
+    console.log(tranches[selectedTranches[0]].tx.outputs.length);
+    onRequestDistributorPubKeys(tranches[selectedTranches[0]].tx.outputs.length);
+  };
+
+  const handleCreateDistributorTransaction = async () => {
+    if (tranches.length === 0 || distPubKeys.length === 0) return;
+
+    const tranche = tranches[selectedTranches[0]];
+    tranche.tx.merklePath = MerklePath.fromHex(tranche.merklePath);
+    const newTx = new Transaction();
+    newTx.version = 2;
+    const dPubKeys = distPubKeys;
+
+    for (let index=0; index < tranche.tx.outputs.length; index++) {
+      newTx.addInput({
+        sourceTransaction: tranche.tx,
+        sourceOutputIndex: index,
+        unlockingScriptTemplate: new P2PKH().unlock(creatorKeys[index]),
+        sequence: parseInt(sequence, 16)
+      });
+    };
+    
+    for (let index=0; index < tranche.tx.outputs.length-1; index++) {
+      const tKey: PrivateKey = PrivateKey.fromString((Hash.sha256hmac(hmacKey, dPubKeys[index].toHash()+(tranche.hashedTickets[index].hash.join(''), 'hex'))).join(''), 'hex');
+      newTx.addOutput({
+        lockingScript: new P2PKH().lock(tKey.toAddress()),
+        satoshis: 1000,
+      });
+    };
+
+    if (dPubKeys.length > 0 && dPubKeys[dPubKeys.length - 1] instanceof PublicKey) {
+      const lastPubKey = dPubKeys[dPubKeys.length - 1];
+      try {
+        const address = lastPubKey.toAddress();
+        newTx.addOutput({
+          lockingScript: new P2PKH().lock(address),
+          change: true
+        });
+      } catch (error) {
+        console.error('Error creating address from public key:', error);
+      }
+    }
+    
+
+    // Set merklePath for each input
+    // Set merklePath for each input
+    newTx.inputs.forEach(input => {
+      if (input.sourceTransaction) {
+        input.sourceTransaction.merklePath = MerklePath.fromHex(tranche.merklePath);
+      }
+    });
+
+
+    console.log(newTx);
+
+    setDistributorTransaction(newTx);
+    onDistributorTxCreated(newTx);
+  };
+
+  const passTrancheToDistributor = () => {
+    if (!distributorTransaction) return;
+
+    const tx = distributorTransaction;
+    const tranche = tranches[selectedTranches[0]];
+    onDistributorTxCreated(tx);
+    onGetMerklePath(tranche.merklePath);
+    onTicketsCreated(tickets);
+    onTicketsHashed(hashedTickets);
   };
 
   return (
@@ -341,6 +441,9 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
           Clear TX
         </Button>
       </div>
+      
+
+
       {hasInputsOrOutputs(creatorTx) && (
         <div style={{ marginTop: '16px' }}>
           <Typography variant="h6" gutterBottom>
@@ -381,7 +484,7 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
           <Button 
             variant="contained" 
             onClick={submitSelectedTranchesToARC} 
-            disabled={selectedTranches.length === 0}
+            disabled={selectedTranches.length === 0 || selectedTranches.length > 1}
             style={{ marginTop: '16px' }} 
           >
             Submit Selected Tranches to ARC
@@ -391,10 +494,40 @@ const TicketCreator: React.FC<Props> = ({ onGetMerklePaths, onTransactionSigned,
           <Button 
             variant="contained" 
             onClick={getMerklePathsForSelectedTranches} 
-            disabled={selectedTranches.length === 0}
+            disabled={selectedTranches.length === 0 || selectedTranches.length > 1}
             style={{ marginTop: '16px' }} 
           >
             Get Merkle Paths for Selected Tranches
+          </Button>
+        </div>
+        <div>
+          <Button 
+            variant="contained" 
+            onClick={handleRequestDistributorPublicKeys} 
+            style={{ marginTop: '16px' }}
+            disabled={selectedTranches.length === 0 || selectedTranches.length > 1}
+          >
+            Request Distributor Public Keys
+          </Button>
+        </div>
+        <div>
+          <Button 
+            variant="contained" 
+            onClick={handleCreateDistributorTransaction} 
+            style={{ marginTop: '16px' }}
+            disabled={selectedTranches.length === 0}
+          >
+            Create Distributor Transaction
+          </Button>
+        </div>
+        <div>
+          <Button 
+            variant="contained" 
+            onClick={passTrancheToDistributor} 
+            style={{ marginTop: '16px' }}
+            disabled={selectedTranches.length === 0}
+          >
+            Pass Tranche to Distributor
           </Button>
         </div>
     </div>

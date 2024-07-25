@@ -27,7 +27,6 @@ export const handleSubmitTx = async (tx: Transaction): Promise<string> => {
         throw new Error(`Error: ${response.statusText}`);
       } else {
         const responseData = await response.json();
-        console.log(responseData);
         return responseData;
       }
     } catch (error) {
@@ -66,7 +65,8 @@ export const spvVerification =  async (tx: Transaction): Promise<boolean> => {
 
   try {
     
-    const result = await tx.verify("scripts only", new SatoshisPerKilobyte(1));
+    const result = await tx.verify("scripts only");
+    //const result = await tx.verify();
      
     console.log(result.valueOf());
     //console.log(await tx.verify());

@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Transaction, PrivateKey, Hash, P2PKH, SatoshisPerKilobyte, MerklePath, defaultChainTracker } from '@bsv/sdk'
+import { Transaction, PrivateKey, Hash, P2PKH, SatoshisPerKilobyte, MerklePath, PublicKey } from '@bsv/sdk'
 import { Ticket, HashedTicket } from './Creator';
 import { Button, Typography, Paper, Grid, TableContainer, Table, TableHead, TableRow, TableCell, TableBody } from '@mui/material';
 import JSONPretty from 'react-json-pretty';
-import 'react-json-pretty/themes/monikai.css';
-import 'prismjs/themes/prism-tomorrow.css';
 import { toHexString, hasInputsOrOutputs, handleSubmitTx, getMerklePath, createHashedTickets,
   spvVerification
  } from './UtilityFunctions';
+import 'react-json-pretty/themes/monikai.css';
+import 'prismjs/themes/prism-tomorrow.css';
+import { on } from 'events';
 
 
 
@@ -16,34 +17,63 @@ interface Props {
   creatorKey: PrivateKey;
   creatorKeys: PrivateKey[];
   hmacKey: string;
-  creatorTx: Transaction;
-  creatorTxMerklePaths: string[];
+  cTx: Transaction;
+  creatorTxMerklePath: string;
   creatorTxOutputIndex: number;
   tickets: Ticket[];
-  distHashedTicks: HashedTicket[]
+  distHashedTicks: HashedTicket[];
+  numDistributorKeys: number;
+  distPrivKeys: PrivateKey[];
+  distPubKeys: PublicKey[];
   onDistribute: (tx: Transaction, index: number, distributorKeys: PrivateKey[]) => void;
   onSelectDistributedTickets: (tickets: Ticket[]) => void;
   onHashDistributedTickets: (hashedTickets: HashedTicket[]) => void;
   onGetMerklePath: (merklePath: string) => void;
+  onCreateDistributorKeys: (distributorPrivKeys: PrivateKey[], distributorPubKeys: PublicKey[]) => void;
 }
 
 
-const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex, creatorTxMerklePaths, hashedTickets, creatorKey, creatorKeys, hmacKey: hmac,
-  creatorTx, tickets, distHashedTicks, onDistribute, onSelectDistributedTickets, onHashDistributedTickets, onGetMerklePath }) => {
+const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex, creatorTxMerklePath, hashedTickets, 
+  creatorKey, creatorKeys, hmacKey: hmac, cTx, tickets, distHashedTicks, numDistributorKeys, distPrivKeys, distPubKeys, 
+  onDistribute, onSelectDistributedTickets, onHashDistributedTickets, onGetMerklePath, onCreateDistributorKeys }) => {
 
   const [privateKey] = useState<PrivateKey>(new PrivateKey());
   const [distributorHashedTickets, setDistributorHashedTickets] = useState<HashedTicket[]>(distHashedTicks);
   const [distributorTx, setDistributorTx] = useState<Transaction>(new Transaction());
   const [distributorTxInputIndex, setDistributorTxInputIndex] = useState<number>(0);
-  const [distributorKeys, setDistributorKeys] = useState<PrivateKey[]>([]);
+  const [distributorPrivKeys, setDistributorPrivKeys] = useState<PrivateKey[]>(distPrivKeys);
+  const [distributorPubKeys, setDistributorPubKeys] = useState<PublicKey[]>(distPubKeys);
   const [outputText, setOutputText] = useState<string>("");
   const [distributorTxMerklePath, setDistributorTxMerklePath] = useState<string>("");
-  const [ctx, setCtx] = useState<Transaction>(creatorTx);
+  const [creatorTx, setCreatorTx] = useState<Transaction>(cTx);
+  const [verifiedTx, setVerifiedTx] = useState<Transaction | null>(null);
 
   useEffect(() => {
-    onDistribute(distributorTx, distributorTxInputIndex, distributorKeys);
-  }, [onDistribute, distributorTx, distributorTxInputIndex, distributorKeys]);
+    onDistribute(distributorTx, distributorTxInputIndex, distributorPrivKeys);
+  }, [onDistribute, distributorTx, distributorTxInputIndex, distributorPrivKeys]);
 
+  useEffect(() => {
+    if (cTx) {
+      setCreatorTx(cTx);
+    }
+  }, [cTx]);
+
+
+  const handleCreateDistributorKeys = () => {
+    const privKeys: PrivateKey[] = [];
+    const pubKeys: PublicKey[] = [];
+    console.log(numDistributorKeys)
+    for (let i = 0; i < numDistributorKeys-1; i++) {
+      privKeys[i] = PrivateKey.fromRandom();
+      pubKeys[i] = privKeys[i].toPublicKey();
+    }
+    privKeys[numDistributorKeys-1] = PrivateKey.fromWif('L259sfQyASg5rpjxMHCh1XbaoRYAvkNCzrMSRG3kuVp2bA9YveX8');
+    pubKeys[numDistributorKeys-1] = privKeys[numDistributorKeys-1].toPublicKey();
+    setDistributorPrivKeys(privKeys);
+    setDistributorPubKeys(pubKeys);
+    onCreateDistributorKeys(privKeys, pubKeys);
+    console.log(JSON.stringify(pubKeys));
+  }
 
   const handleCreateHashedTickets = () => {
 
@@ -55,38 +85,79 @@ const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex,
   };
 
   const handleSpvVerification = async () => {
-    if (!creatorTx || !creatorTxMerklePaths) {
-      console.log("No creator transaction or merkle path");
+    if (!creatorTx || !creatorTx.inputs || creatorTx.inputs.length === 0) {
+      console.log("Creator transaction is not properly initialized");
+      setOutputText("Creator transaction is not properly initialized");
       return;
     }
   
     try {
-      const tx = creatorTx;
-      const merklePath = MerklePath.fromHex(creatorTxMerklePaths[0]);
-      tx.merklePath = merklePath;
+      console.log("Creator TX:", creatorTx);
+      console.log("Creator TX Inputs:", creatorTx.inputs);
+      console.log("Creator TX Outputs:", creatorTx.outputs);
   
-      // Verify the merkle proof
-      const isValidMerkleProof = await tx.verify("scripts only", new SatoshisPerKilobyte(1));
-      if (!isValidMerkleProof) {
-        console.error('Invalid merkle proof');
-        setOutputText('SPV Check Failed: Invalid merkle proof');
+      if (!creatorTx.inputs[0].sourceTransaction) {
+        console.log("Source transaction is missing");
+        setOutputText("Source transaction is missing");
         return;
       }
   
-      // Verify the transaction
-      const verificationResult = await tx.verify('scripts only', new SatoshisPerKilobyte(1));
-      
+      console.log("Source Transaction Merkle Path:", creatorTx.inputs[0].sourceTransaction.merklePath?.toHex());
+  
+      // Manually construct the transaction hex using BigInt
+      const version = BigInt(creatorTx.version).toString(16).padStart(8, '0');
+      const inputCount = creatorTx.inputs.length.toString(16).padStart(2, '0');
+      const outputCount = creatorTx.outputs.length.toString(16).padStart(2, '0');
+      const lockTime = BigInt(creatorTx.lockTime).toString(16).padStart(8, '0');
+  
+      let inputsHex = '';
+      creatorTx.inputs.forEach(input => {
+        inputsHex += (input.sourceTransaction?.id('hex') || '0'.repeat(64)) +
+                     BigInt(input.sourceOutputIndex || 0).toString(16).padStart(8, '0') +
+                     '00' + // Empty unlocking script for now
+                     'ffffffff'; // Sequence
+      });
+  
+      let outputsHex = '';
+      creatorTx.outputs.forEach(output => {
+        outputsHex += BigInt(output.satoshis || 0).toString(16).padStart(16, '0') +
+                      (output.lockingScript?.toHex() || '');
+      });
+  
+      const txHex = version + inputCount + inputsHex + outputCount + outputsHex + lockTime;
+      console.log("Manually constructed Transaction Hex:", txHex);
+  
+      const tx = Transaction.fromHex(creatorTx.inputs[0].sourceTransaction?.merklePath?.toHex() || '');
+      const verificationResult = await spvVerification(tx);
+  
       if (verificationResult) {
-        console.log('SPV Check Passed:', verificationResult);
+        console.log('SPV Check Passed', verificationResult);
         setOutputText(`SPV Check Passed: ${JSON.stringify(verificationResult, null, 2)}`);
+        setVerifiedTx(tx);
       } else {
-        console.error('SPV Check Failed:', verificationResult);
-        setOutputText(`SPV Check Failed: ${JSON.stringify(verificationResult, null, 2)}`);
+        console.error('SPV Check Failed');
+        setOutputText('SPV Check Failed');
       }
     } catch (error) {
       console.error('SPV Verification error:', error);
       setOutputText(`SPV Check Error: ${error}`);
     }
+  };
+
+  const handleIntegrityCheck = () => {
+    const recreatedHashes = createHashedTickets(tickets, hmac);
+    const integrityPassed = recreatedHashes.every((hash, index) => 
+      hash.hash.toString() === hashedTickets[index].hash.toString()
+    );
+
+    if (integrityPassed) {
+      console.log('Integrity Check Passed');
+      setOutputText('Integrity Check Passed');
+    } else {
+      console.error('Integrity Check Failed');
+      setOutputText('Integrity Check Failed');
+    }
+    return integrityPassed;
   };
   
 
@@ -117,7 +188,7 @@ const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex,
       change: true,
     });
 
-    setDistributorKeys(keys);
+    setDistributorPrivKeys(keys);
     setDistributorTx(tx);
     setDistributorTxInputIndex(tx.inputs.length - 1);
     setOutputText(JSON.stringify(tx, null, 2));
@@ -127,10 +198,10 @@ const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex,
   const handleAddInputs = () => {
     if (!creatorKeys) return;
     const tx = distributorTx;
-    const ctx = creatorTx;
+    const ctx = cTx;
 
-    console.log(creatorTxMerklePaths[0]);
-    ctx.merklePath = MerklePath.fromHex(creatorTxMerklePaths[0]);
+    console.log(creatorTxMerklePath);
+    ctx.merklePath = MerklePath.fromHex(creatorTxMerklePath);
 
     tickets.forEach((ticket, index) => {
       tx.addInput({
@@ -148,7 +219,7 @@ const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex,
       sequence: 0xFFFFFFFF,
     });
 
-    setCtx(ctx);
+    setCreatorTx(ctx);
     setDistributorTx(tx);
     setOutputText(JSON.stringify(tx, null, 2));
 
@@ -172,18 +243,44 @@ const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex,
     if (distributorHashedTickets.length !== 0) {
       index = distributorHashedTickets.length;
     } 
-    onDistribute(tx, index, distributorKeys);
+    onDistribute(tx, index, distributorPrivKeys);
     onSelectDistributedTickets(tickets);
     setOutputText(JSON.stringify(tx.toHex(), null, 2));
 
   };
 
   const handleSubmitTransaction = async () => {
+    if (!verifiedTx) return;
 
-    const result = await handleSubmitTx(distributorTx);
-    setOutputText(JSON.stringify(result, null, 2));
+    const result = await handleSubmitTx(verifiedTx);
+    console.log('Submitted to ARC:', result);
+    setOutputText(`Submitted to ARC: ${JSON.stringify(result, null, 2)}`);
 
+    const merklePath = await getMerklePath(verifiedTx);
+    onGetMerklePath(merklePath);
   };
+
+  const createBuyerTemplate = () => {
+    if (!verifiedTx) return;
+
+    const template = {
+      inputs: verifiedTx.inputs.map((input, index) => ({
+        sourceTransaction: input.sourceTransaction?.toHex(),
+        sourceOutputIndex: input.sourceOutputIndex,
+        sequence: input.sequence,
+      })),
+      outputs: verifiedTx.outputs.map(output => ({
+        satoshis: output.satoshis,
+        lockingScriptTemplate: {
+          type: 'P2PKH',
+          address: 'BUYER_ADDRESS_PLACEHOLDER',
+        },
+      })),
+    };
+
+    setOutputText(JSON.stringify(template, null, 2));
+  };
+
 
   const handleGetMerklePath = async () => {
 
@@ -282,8 +379,18 @@ const Distributor: React.FC<Props> = ({ creatorTxOutputIndex: prevTxOutputIndex,
     </Grid>
     </Grid>
       <div>
+        <Button variant="contained" onClick={handleCreateDistributorKeys} style={{ marginTop: '16px' }}>
+          Create Distributor Keys
+        </Button>
+      </div>
+      <div>
         <Button variant="contained" onClick={handleSpvVerification} style={{ marginTop: '16px' }}>
           Run SPV Check
+        </Button>
+      </div>
+      <div>
+        <Button variant="contained" onClick={handleIntegrityCheck} style={{ marginTop: '16px' }}>
+          Run Integrity Check
         </Button>
       </div>
       <div>

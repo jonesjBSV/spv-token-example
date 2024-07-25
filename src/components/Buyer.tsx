@@ -4,8 +4,8 @@ import { Button, Typography, Grid, TableContainer, Paper, Table, TableHead, Tabl
 import { HashedTicket, Ticket } from './Creator';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
-import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
+import Prism from 'prismjs';
 import { toHexString, handleSubmitTx, getMerklePath } from './UtilityFunctions';
 
 interface Props {
@@ -30,7 +30,7 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
   const [selectedTickets, setSelectedTickets] = useState<Set<number>>(new Set());
   const [transactionTemplate, setTransactionTemplate] = useState<Transaction | null>(null);
   const [distributorOutputKey, setDistributorOutputKey] = useState<PrivateKey>(PrivateKey.fromRandom());
-  const [buyerTx, setBuyerTx] = useState<Transaction>(new Transaction());
+  const [buyerTx, setBuyerTx] = useState<Transaction | null>(null);
   const [buyerKeys, setBuyerKeys] = useState<PrivateKey[]>([]);
   const [buyer2Keys, setBuyer2Keys] = useState<PrivateKey[]>([]);
   const [buyerTxOutputIndex, setBuyerTxOutputIndex] = useState<number>(0);
@@ -59,7 +59,7 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
   };
 
   const handleGetMerklePath = async () => {
-    const merklePath = await getMerklePath(buyerTx);
+    const merklePath = await getMerklePath(buyerTx as Transaction);
     setBuyerTxMerklePath(merklePath);
     setOutputText(JSON.stringify(merklePath, null, 2));
   };
@@ -92,6 +92,26 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
     }, null, 2);
 
     setBody(template);
+  };
+
+  const handleCreateInitialTransaction = () => {
+    if (!distributorTx) return;
+
+    const tx = new Transaction();
+    tx.addInput({
+      sourceTransaction: distributorTx,
+      sourceOutputIndex: distributorTxInputIndex,
+      unlockingScriptTemplate: new P2PKH().unlock(PrivateKey.fromRandom(), 'none'),
+      sequence: 0xFFFFFFFF,
+    });
+
+    tx.addOutput({
+      lockingScript: new P2PKH().lock(PrivateKey.fromRandom().toPublicKey().toAddress()),
+      satoshis: 100000000, // Example amount
+    });
+
+    setBuyerTx(tx);
+    setOutputText(JSON.stringify(JSON.stringify(tx), null, 2));
   };
 
   const handleBuyerBuildAndSign = async () => {
@@ -224,12 +244,12 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
   };
 
   const handleSubmitTransaction = async () => {
-    await handleSubmitTx(buyerTx);
-    onBuy(buyerTx, buyerTxOutputIndex, buyerKeys, buyer2Keys);
+    await handleSubmitTx(buyerTx as Transaction);
+    onBuy(buyerTx as Transaction, buyerTxOutputIndex, buyerKeys, buyer2Keys);
   };
 
   const handleSellTicket = async () => {
-    const tx = buyerTx;
+    const tx = buyerTx as Transaction;
     const b2Keys: PrivateKey[] = [];
     selectedTickets.forEach((index) => {
       const hashedTicket = buyerHashedTickets[index]
@@ -249,6 +269,60 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
     });
 
   }
+
+  const handleSignTransaction = async () => {
+    if (!buyerTx) return;
+
+    await buyerTx.sign();
+    setOutputText(JSON.stringify(JSON.stringify(buyerTx), null, 2));
+  };
+
+  const handleSendToDistributor = () => {
+    if (!buyerTx) return;
+
+    //const buyerPublicKeys = selectedTickets.map(() => PrivateKey.fromRandom().toPublicKey());
+    onBuy(buyerTx, buyerTxOutputIndex, buyerKeys, buyer2Keys);
+    setOutputText("Transaction sent to Distributor with buyer public keys");
+  };
+
+  const handleResellTickets = () => {
+    if (!buyerTx) return;
+
+    const resoldTx = buyerTx
+    selectedTickets.forEach((index) => {
+      const newKey = PrivateKey.fromRandom().toPublicKey();
+      resoldTx.outputs[index].lockingScript = new P2PKH().lock(newKey.toAddress());
+    });
+
+    setBuyerTx(resoldTx);
+    setOutputText(JSON.stringify(JSON.stringify(resoldTx), null, 2));
+  };
+
+  const handleRequestEventGateKeys = async () => {
+    // Simulating request to EventGate for public keys
+    const eventGateKeys: PrivateKey[] = [];
+    for (let i = 0; i < selectedTickets.size; i++) {
+      eventGateKeys[i] = PrivateKey.fromRandom();
+    }
+    
+    if (!buyerTx) return;
+
+    const updatedTx = buyerTx;
+    selectedTickets.forEach((index, i) => {
+      updatedTx.outputs[index].lockingScript = new P2PKH().lock(eventGateKeys[i].toAddress());
+    });
+
+    setBuyerTx(updatedTx);
+    setOutputText(JSON.stringify(JSON.stringify(updatedTx), null, 2));
+  };
+
+  const handleSendToEventGate = async () => {
+    if (!buyerTx) return;
+
+    const merklePath = await getMerklePath(buyerTx);
+    // Here you would typically send the transaction and merkle path to the EventGate
+    setOutputText(`Transaction and Merkle path ready to send to EventGate: ${merklePath}`);
+  };
 
   return (
     <div>
@@ -377,18 +451,18 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
     </Grid>
     </Grid>
       <div>
-        <Button variant="contained" onClick={handleRequestTemplate} style={{ marginTop: '16px' }}>
-          Step 1
+        <Button variant="contained" onClick={handleCreateInitialTransaction} style={{ marginTop: '16px' }}>
+          Create Initial Transaction
         </Button>
       </div>
       <div>
-        <Button variant="contained" onClick={handleBuyerBuildAndSign} style={{ marginTop: '16px' }}>
-          Step 2
+        <Button variant="contained" onClick={handleSignTransaction} style={{ marginTop: '16px' }}>
+          Sign Transaction
         </Button>
       </div>
       <div>
-        <Button variant="contained" onClick={handleDistributorBuildAndSign} style={{ marginTop: '16px' }}>
-          Step 3
+        <Button variant="contained" onClick={handleSendToDistributor} style={{ marginTop: '16px' }}>
+          Send to Distributor
         </Button>
       </div>
       <div>
@@ -397,8 +471,18 @@ const Buyer: React.FC<Props> = ({ onSelectBuyerTickets, onGetMerklePath, distrib
         </Button>
       </div>
       <div>
-        <Button variant="contained" onClick={handleSellTicket} style={{ marginTop: '16px' }}>
-          Sell Ticket
+        <Button variant="contained" onClick={handleResellTickets} style={{ marginTop: '16px' }}>
+          Resell Tickets
+        </Button>
+      </div>
+      <div>
+        <Button variant="contained" onClick={handleRequestEventGateKeys} style={{ marginTop: '16px' }}>
+          Request EventGate Keys
+        </Button>
+      </div>
+      <div>
+        <Button variant="contained" onClick={handleSendToEventGate} style={{ marginTop: '16px' }}>
+          Send to EventGate
         </Button>
       </div>
       <div>
